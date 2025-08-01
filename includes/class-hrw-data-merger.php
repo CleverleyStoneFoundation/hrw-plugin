@@ -821,16 +821,21 @@ class HRW_Data_Merger
 
 		if (!empty($neighborhood)) {
 			error_log('HRW Transform: Step 2.9 - Processing neighborhood for ' . $hrw_restaurant->post_title);
+
+			// CRITICAL FIX: Handle array neighborhood data
+			$neighborhood_string = is_array($neighborhood) ? $neighborhood[0] : $neighborhood;
+			error_log('HRW Transform: Step 2.9.1 - Extracted neighborhood string: ' . var_export($neighborhood_string, true));
+
 			// Set neighborhood in meta and as taxonomy
-			$place['meta']['vibemap_place_neighborhood'] = $neighborhood;
-			error_log('HRW Transform: Step 2.10 - About to call sanitize_title for ' . $hrw_restaurant->post_title . ' with value: ' . var_export($neighborhood, true));
+			$place['meta']['vibemap_place_neighborhood'] = $neighborhood_string;
+			error_log('HRW Transform: Step 2.10 - About to call sanitize_title for ' . $hrw_restaurant->post_title . ' with value: ' . var_export($neighborhood_string, true));
 
 			// CRITICAL FIX: Use safe sanitize_title with fallback
 			if (function_exists('sanitize_title')) {
-				$neighborhood_slug = sanitize_title($neighborhood);
+				$neighborhood_slug = sanitize_title($neighborhood_string);
 			} else {
 				// Fallback: Manual sanitization if WordPress function not available
-				$neighborhood_slug = strtolower(preg_replace('/[^a-zA-Z0-9\-_]/', '-', $neighborhood));
+				$neighborhood_slug = strtolower(preg_replace('/[^a-zA-Z0-9\-_]/', '-', $neighborhood_string));
 				$neighborhood_slug = preg_replace('/-+/', '-', $neighborhood_slug);
 				$neighborhood_slug = trim($neighborhood_slug, '-');
 			}
@@ -839,7 +844,7 @@ class HRW_Data_Merger
 
 			$place['neighborhood'] = [[
 				'id' => $neighborhood_slug,
-				'name' => $neighborhood,
+				'name' => $neighborhood_string,
 				'slug' => $neighborhood_slug
 			]];
 			error_log('HRW Transform: Step 2.11 - Neighborhood processing complete for ' . $hrw_restaurant->post_title);
