@@ -54,6 +54,7 @@ class HRW_Plugin_Bootstrap
 		$classes = [
 			'class-hrw-restaurant-loader.php',
 			'class-hrw-data-merger.php',
+			'class-hrw-api-cache.php',
 		];
 
 		foreach ($classes as $class_file) {
@@ -84,6 +85,10 @@ class HRW_Plugin_Bootstrap
 	 */
 	public static function modify_places_response($response, $handler, $request)
 	{
+		// TIMING: Start overall response modification
+		$overall_start = microtime(true);
+		error_log('HRW Bootstrap: [TIMING] Starting response modification at ' . date('H:i:s.') . substr(microtime(), 2, 3));
+
 		// Only modify our specific endpoint
 		if ($request->get_route() !== '/vibemap/v1/places-data') {
 			return $response;
@@ -103,29 +108,51 @@ class HRW_Plugin_Bootstrap
 			return $response;
 		}
 
-		// Get the original data
+		// TIMING: Get original data
+		$get_data_start = microtime(true);
 		$original_data = $response->get_data();
+		$get_data_time = round((microtime(true) - $get_data_start) * 1000, 2);
+		error_log('HRW Bootstrap: [TIMING] Getting original data took ' . $get_data_time . 'ms');
 
 		// Log original data structure (minimal)
 		error_log('HRW Bootstrap: Original data - Places: ' . (isset($original_data['places']) ? count($original_data['places']) : 'N/A'));
 
-		// Use the optimized merger
+		// TIMING: Use the optimized merger
+		$merger_start = microtime(true);
 		$merged_data = HRW_Data_Merger::merge_restaurant_data($original_data, $request);
+		$merger_time = round((microtime(true) - $merger_start) * 1000, 2);
+		error_log('HRW Bootstrap: [TIMING] Data merger took ' . $merger_time . 'ms');
 
-		// Add debug info
+		// TIMING: Add debug info
+		$debug_start = microtime(true);
 		$merged_data['debug_info'] = [
 			'hrw_modified' => true,
 			'timestamp' => current_time('mysql'),
 			'places_processed' => count($merged_data['places']),
 			'optimization_version' => self::VERSION,
-			'memory_info' => HRW_Restaurant_Loader::get_memory_info()
+			'memory_info' => HRW_Restaurant_Loader::get_memory_info(),
+			'timing' => [
+				'get_original_data_ms' => $get_data_time,
+				'data_merger_ms' => $merger_time,
+			]
 		];
+		$debug_time = round((microtime(true) - $debug_start) * 1000, 2);
+		error_log('HRW Bootstrap: [TIMING] Adding debug info took ' . $debug_time . 'ms');
 
 		// Log merged data structure (minimal)
 		error_log('HRW Bootstrap: Merged data - Places: ' . count($merged_data['places']) . ', Memory: ' . HRW_Restaurant_Loader::get_memory_info()['usage_formatted']);
 
-		// Return modified response
+		// TIMING: Set response data
+		$set_data_start = microtime(true);
 		$response->set_data($merged_data);
+		$set_data_time = round((microtime(true) - $set_data_start) * 1000, 2);
+		error_log('HRW Bootstrap: [TIMING] Setting response data took ' . $set_data_time . 'ms');
+
+		// TIMING: Overall completion
+		$overall_time = round((microtime(true) - $overall_start) * 1000, 2);
+		error_log('HRW Bootstrap: [TIMING] TOTAL response modification took ' . $overall_time . 'ms at ' . date('H:i:s.') . substr(microtime(), 2, 3));
+		error_log('HRW Bootstrap: [TIMING] ===== RESPONSE MODIFICATION COMPLETE =====');
+
 		return $response;
 	}
 
