@@ -19,6 +19,9 @@
 		apiPlacesData: [],
 		placesDataMap: {},
 
+		// Debouncing for performance
+		logoDetectionTimeout: null,
+
 		/**
 		 * Initialize the card enhancer
 		 */
@@ -36,6 +39,9 @@
 
 			// Set up mutation observer for dynamically loaded cards
 			this.setupMutationObserver();
+
+			// Initialize HRW fallback logo detection
+			this.initFallbackLogoDetection();
 		},
 
 		/**
@@ -150,21 +156,35 @@
 
 			// Create mutation observer to watch for new cards
 			const observer = new MutationObserver(function (mutations) {
+				let shouldRecheckLogos = false;
+
 				mutations.forEach(function (mutation) {
 					if (mutation.type === 'childList') {
 						mutation.addedNodes.forEach(function (node) {
 							if (node.nodeType === Node.ELEMENT_NODE) {
 								self.enhanceCard(node);
+								shouldRecheckLogos = true;
 							}
 						});
 					}
+					// Also watch for style changes that might affect background images
+					if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+						shouldRecheckLogos = true;
+					}
 				});
+
+				// Re-run fallback logo detection with debouncing
+				if (shouldRecheckLogos) {
+					self.debouncedLogoDetection();
+				}
 			});
 
 			// Start observing
 			observer.observe(document.body, {
 				childList: true,
-				subtree: true
+				subtree: true,
+				attributes: true,
+				attributeFilter: ['style']
 			});
 		},
 
@@ -476,6 +496,99 @@
 			if (hrwCardData.has_reservations) {
 				cardElement.classList.add('hrw-has-reservations');
 			}
+		},
+
+		/**
+		 * Initialize HRW fallback logo detection
+		 */
+		initFallbackLogoDetection: function () {
+			const self = this;
+
+			console.log('HRW Card Enhancer: Initializing fallback logo detection');
+
+			// Run initial detection
+			this.detectHRWFallbackLogos();
+
+			// Re-run detection after delays for dynamic content
+			setTimeout(function () { self.detectHRWFallbackLogos(); }, 1000);
+			setTimeout(function () { self.detectHRWFallbackLogos(); }, 3000);
+		},
+
+		/**
+		 * Debounced logo detection to prevent performance issues
+		 */
+		debouncedLogoDetection: function () {
+			const self = this;
+
+			// Clear existing timeout
+			if (this.logoDetectionTimeout) {
+				clearTimeout(this.logoDetectionTimeout);
+			}
+
+			// Set new timeout with longer delay to batch multiple changes
+			this.logoDetectionTimeout = setTimeout(function () {
+				self.detectHRWFallbackLogos();
+				self.logoDetectionTimeout = null;
+			}, 500); // 500ms delay to batch rapid changes
+		},
+
+		/**
+		 * Detect and mark HRW fallback logos (optimized with debugging)
+		 */
+		detectHRWFallbackLogos: function () {
+			const cardImages = document.querySelectorAll('.sing-card-image');
+			const hrwLogoPattern = /HRW_2025-LOGO_1\.1\.svg/i;
+			let detectedCount = 0;
+
+			console.log('🔍 HRW Logo Detection: Found', cardImages.length, 'card images');
+
+			// Exit early if no card images found
+			if (cardImages.length === 0) {
+				console.log('⚠️ HRW Logo Detection: No .sing-card-image elements found');
+
+				// Try alternative selectors
+				const alternativeSelectors = [
+					'.card-image',
+					'.vibemap-card-image',
+					'[class*="card"] [class*="image"]',
+					'.sing-card .image',
+					'.wp-block-vibemap-single-card img'
+				];
+
+				alternativeSelectors.forEach(selector => {
+					const altImages = document.querySelectorAll(selector);
+					if (altImages.length > 0) {
+						console.log('🔍 Found', altImages.length, 'images with selector:', selector);
+					}
+				});
+				return;
+			}
+
+			cardImages.forEach(function (img, index) {
+				const backgroundImage = window.getComputedStyle(img).backgroundImage;
+				console.log(`🖼️ Card ${index + 1}:`, {
+					element: img,
+					backgroundImage: backgroundImage,
+					classList: Array.from(img.classList),
+					hasHRWPattern: hrwLogoPattern.test(backgroundImage)
+				});
+
+				// Check if background image contains the HRW logo SVG
+				if (backgroundImage && hrwLogoPattern.test(backgroundImage)) {
+					if (!img.classList.contains('hrw-fallback-logo')) {
+						img.classList.add('hrw-fallback-logo');
+						detectedCount++;
+						console.log('✅ Added hrw-fallback-logo class to card', index + 1);
+					}
+				} else {
+					if (img.classList.contains('hrw-fallback-logo')) {
+						img.classList.remove('hrw-fallback-logo');
+						console.log('❌ Removed hrw-fallback-logo class from card', index + 1);
+					}
+				}
+			});
+
+			console.log('🎯 HRW Logo Detection Complete:', detectedCount, 'new fallback logos detected');
 		}
 	};
 
@@ -494,5 +607,11 @@
 
 	// Make HRWCardEnhancer available globally
 	window.HRWCardEnhancer = HRWCardEnhancer;
+
+	// Add manual testing function
+	window.testHRWLogoDetection = function () {
+		console.log('🧪 Manual HRW Logo Detection Test');
+		HRWCardEnhancer.detectHRWFallbackLogos();
+	};
 
 })(jQuery); 
