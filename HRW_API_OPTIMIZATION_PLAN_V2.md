@@ -302,4 +302,49 @@ Maximum performance optimization for peak traffic.
 
 ---
 
-This plan targets the remaining 38% improvement needed to achieve **sub-1.5-second initial loads** while maintaining the excellent **127ms cached performance** already achieved! 🚀 
+This plan targets the remaining 38% improvement needed to achieve **sub-1.5-second initial loads** while maintaining the excellent **127ms cached performance** already achieved! 🚀
+
+---
+
+## 🎯 **SELECTIVE CACHE INVALIDATION (IMPLEMENTED)**
+
+### **Smart Cache Management**
+Cache invalidation now only triggers for restaurants that actually appear in API results:
+
+#### **Invalidation Criteria:**
+```php
+// Cache clears ONLY when ALL conditions are met:
+✅ Post status: 'publish' (visible to public)
+✅ Menu status: '4' (approved by admin)  
+✅ Menu year: '2025' (current event year)
+```
+
+#### **Cache Behavior Examples:**
+| **Scenario** | **Cache Action** | **Reason** |
+|--------------|------------------|------------|
+| Draft restaurant saved | ❌ No clear | Not visible in API |
+| Published but unapproved | ❌ No clear | Filtered out by API |
+| Published + approved | ✅ Clear cache | Visible in API results |
+| Status change to publish | ✅ Clear if approved | May become visible |
+| Approved → unapproved | ✅ Clear cache | Removed from API |
+
+#### **Performance Benefits:**
+- **Reduced unnecessary cache clears** (saves 2.45s rebuilds)
+- **Maintained data freshness** for visible restaurants
+- **Better cache hit rates** (fewer invalidations)
+- **Improved editor experience** (drafts don't affect live site)
+
+### **Houston Restaurant Week Workflow:**
+```
+Restaurant Draft → No cache impact
+↓
+Admin Approval (_menu_status = 4) → Still no cache impact  
+↓
+Publish Status → Cache cleared, appears immediately on site
+↓
+Content Updates → Cache cleared, changes appear immediately
+↓
+Unpublish/Unapprove → Cache cleared, removed from site
+```
+
+**Result**: Perfect balance of performance and data freshness! 🎉 
