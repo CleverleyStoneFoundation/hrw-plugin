@@ -338,11 +338,63 @@
 		console.log('%c✅ All optimizations activated', styles.success);
 	}
 
+	// HRW Fallback Logo Detection
+	function detectHRWFallbackLogos() {
+		const cardImages = document.querySelectorAll('.sing-card-image');
+		const hrwLogoPattern = /HRW_2025-LOGO_1\.1\.svg/i;
+
+		cardImages.forEach(function (img) {
+			const backgroundImage = window.getComputedStyle(img).backgroundImage;
+
+			// Check if background image contains the HRW logo SVG
+			if (backgroundImage && hrwLogoPattern.test(backgroundImage)) {
+				img.classList.add('hrw-fallback-logo');
+			} else {
+				img.classList.remove('hrw-fallback-logo');
+			}
+		});
+	}
+
+	// Enhanced init function that includes fallback logo detection
+	function enhancedInit() {
+		init(); // Run original init
+
+		// Run fallback logo detection
+		detectHRWFallbackLogos();
+
+		// Re-run detection after a delay for dynamic content
+		setTimeout(detectHRWFallbackLogos, 1000);
+		setTimeout(detectHRWFallbackLogos, 3000);
+
+		// Set up observer for dynamic content changes
+		if (window.MutationObserver) {
+			const observer = new MutationObserver(function (mutations) {
+				let shouldRecheck = false;
+				mutations.forEach(function (mutation) {
+					if (mutation.type === 'childList' ||
+						(mutation.type === 'attributes' && mutation.attributeName === 'style')) {
+						shouldRecheck = true;
+					}
+				});
+				if (shouldRecheck) {
+					setTimeout(detectHRWFallbackLogos, 100);
+				}
+			});
+
+			observer.observe(document.body, {
+				childList: true,
+				subtree: true,
+				attributes: true,
+				attributeFilter: ['style']
+			});
+		}
+	}
+
 	// Auto-initialize when DOM is ready
 	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', init);
+		document.addEventListener('DOMContentLoaded', enhancedInit);
 	} else {
-		init();
+		enhancedInit();
 	}
 
 })(); 
