@@ -57,6 +57,7 @@ class HRW_Plugin_Bootstrap
 			'class-hrw-api-cache.php',
 			'class-hrw-json-timing.php',
 			'class-hrw-wordpress-timing.php',
+			'class-hrw-response-headers.php',
 		];
 
 		foreach ($classes as $class_file) {
@@ -89,6 +90,11 @@ class HRW_Plugin_Bootstrap
 		// Initialize WordPress timing to measure WordPress lifecycle overhead
 		if (class_exists('HRW_WordPress_Timing')) {
 			HRW_WordPress_Timing::init();
+		}
+
+		// Initialize response header optimization to reduce hosting overhead
+		if (class_exists('HRW_Response_Headers')) {
+			HRW_Response_Headers::init();
 		}
 	}
 
