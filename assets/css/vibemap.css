@@ -198,7 +198,6 @@ div[class*="card-container"] {
 	width: 160px !important;
 	height: 100% !important;
 	border-radius: 0 !important;
-	background-size: cover !important;
 	background-position: center !important;
 	position: absolute !important;
 	top: 0 !important;
@@ -302,6 +301,7 @@ div[class*="card-container"] {
 	gap: 6px !important;
 	font-weight: 500 !important;
 	outline: none !important;
+	border: none !important;
 }
 
 .hrw-reservation-link:hover {
