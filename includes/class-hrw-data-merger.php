@@ -78,7 +78,7 @@ class HRW_Data_Merger
 
 
 	/**
-	 * Process restaurants directly without merging
+	 * Process restaurants directly with optimized bulk meta loading
 	 * 
 	 * @param array $hrw_restaurants Array of HRW restaurant posts with vibemap_id
 	 * @param WP_REST_Request $request The REST request object
@@ -86,28 +86,47 @@ class HRW_Data_Merger
 	 */
 	private static function process_restaurants_directly($hrw_restaurants, $request)
 	{
+		if (empty($hrw_restaurants)) {
+			error_log('HRW Error: No restaurants provided for processing');
+			return self::build_final_response([], [], [], [], [], $request);
+		}
+
 		$transformed_places = [];
 		$used_categories = [];
 		$used_vibes = [];
 		$used_tags = [];
 		$used_custom_taxonomies = [];
 
+		// Start query profiling for performance monitoring
+		$query_start_time = microtime(true);
+		$query_count_start = self::get_query_count();
+
+		// Bulk load meta data for all restaurants (eliminates N+1 queries)
+		$restaurant_ids = array_map(function ($restaurant) {
+			return $restaurant->ID;
+		}, $hrw_restaurants);
+		$meta_keys = HRW_Restaurant_Loader::get_transformation_meta_keys();
+
+		$bulk_meta = HRW_Restaurant_Loader::get_bulk_restaurant_meta($restaurant_ids, $meta_keys);
+
+		// Profile bulk meta loading performance
+		$bulk_meta_time = microtime(true) - $query_start_time;
+		$bulk_meta_queries = self::get_query_count() - $query_count_start;
+
 		foreach ($hrw_restaurants as $index => $hrw_restaurant) {
 			// Monitor memory usage and break if getting too high
 			$memory_info = HRW_Restaurant_Loader::get_memory_info();
 
 			if ($memory_info['is_high']) {
-				error_log('HRW Merger: Memory usage too high (' . $memory_info['usage_formatted'] . ' of ' . $memory_info['limit'] . '), stopping at restaurant ' . ($index + 1));
+				error_log('HRW Memory: High usage (' . $memory_info['usage_formatted'] . '), stopping at restaurant ' . ($index + 1));
 				break;
 			}
 
-			// Minimal logging for first restaurant only
-			if ($index === 0) {
-				error_log('HRW Merger: Processing first restaurant: ' . $hrw_restaurant->post_title . ' (Memory: ' . $memory_info['usage_formatted'] . ')');
-			}
+			// Get pre-loaded meta for this restaurant
+			$restaurant_meta = isset($bulk_meta[$hrw_restaurant->ID]) ? $bulk_meta[$hrw_restaurant->ID] : [];
 
-			// Transform the restaurant directly
-			$transformed_place = self::transform_hrw_restaurant_to_place($hrw_restaurant, $used_custom_taxonomies);
+			// Use optimized transformation with bulk meta data
+			$transformed_place = self::transform_hrw_restaurant_to_place_safe($hrw_restaurant, $restaurant_meta, $used_custom_taxonomies);
 
 			if ($transformed_place) {
 				$transformed_places[] = $transformed_place;
@@ -132,8 +151,73 @@ class HRW_Data_Merger
 			}
 		}
 
+		// Performance monitoring (only log if slow or memory issues)
+		$total_time = microtime(true) - $query_start_time;
+
+		if ($total_time > 5.0 || count($transformed_places) < count($hrw_restaurants) * 0.9) {
+			$total_queries = self::get_query_count() - $query_count_start;
+			$transformation_time = $total_time - $bulk_meta_time;
+
+			error_log('HRW Performance: Total ' . round($total_time * 1000, 2) . 'ms, ' . $total_queries . ' queries, ' . count($transformed_places) . '/' . count($hrw_restaurants) . ' restaurants');
+		}
+
 		// Build final response
 		return self::build_final_response($transformed_places, $used_categories, $used_vibes, $used_tags, $used_custom_taxonomies, $request);
+	}
+
+	/**
+	 * EMERGENCY: Legacy processing method using original working transformation
+	 * This bypasses all bulk meta optimization and uses individual ACF calls
+	 * 
+	 * @param array $hrw_restaurants Array of HRW restaurant posts
+	 * @param WP_REST_Request $request The REST request object
+	 * @return array Processed data using legacy method
+	 */
+	private static function process_restaurants_legacy_method($hrw_restaurants, $request)
+	{
+		error_log('HRW Emergency: Using legacy processing method for ' . count($hrw_restaurants) . ' restaurants');
+
+		$transformed_places = [];
+		$used_categories = [];
+		$used_vibes = [];
+		$used_tags = [];
+		$used_custom_taxonomies = [];
+
+		foreach ($hrw_restaurants as $index => $hrw_restaurant) {
+			// Monitor memory usage and break if getting too high
+			$memory_info = HRW_Restaurant_Loader::get_memory_info();
+
+			if ($memory_info['is_high']) {
+				error_log('HRW Legacy: Memory usage too high (' . $memory_info['usage_formatted'] . ' of ' . $memory_info['limit'] . '), stopping at restaurant ' . ($index + 1));
+				break;
+			}
+
+			// Use legacy transformation (individual ACF calls)
+			$transformed_place = self::transform_hrw_restaurant_to_place($hrw_restaurant, $used_custom_taxonomies);
+
+			if ($transformed_place) {
+				$transformed_places[] = $transformed_place;
+
+				// Track used taxonomies
+				self::track_used_taxonomies($transformed_place, $used_categories, $used_vibes, $used_tags);
+			}
+		}
+
+		error_log('HRW Legacy: Successfully processed ' . count($transformed_places) . '/' . count($hrw_restaurants) . ' restaurants');
+
+		// Build final response
+		return self::build_final_response($transformed_places, $used_categories, $used_vibes, $used_tags, $used_custom_taxonomies, $request);
+	}
+
+	/**
+	 * Get current database query count for performance profiling
+	 * 
+	 * @return int Current query count
+	 */
+	private static function get_query_count()
+	{
+		global $wpdb;
+		return $wpdb->num_queries;
 	}
 
 	/**
@@ -404,7 +488,487 @@ class HRW_Data_Merger
 	}
 
 	/**
-	 * Transform HRW restaurant directly to place structure
+	 * Optimized transformation using bulk-loaded meta data (eliminates individual DB calls)
+	 * 
+	 * @param WP_Post $hrw_restaurant HRW restaurant post
+	 * @param array $restaurant_meta Pre-loaded meta data for this restaurant
+	 * @param array &$used_custom_taxonomies Reference to used custom taxonomies
+	 * @return array|null Transformed place data or null if invalid
+	 */
+	private static function transform_hrw_restaurant_to_place_optimized($hrw_restaurant, $restaurant_meta, &$used_custom_taxonomies)
+	{
+		// Get the vibemap_id from pre-loaded meta (no DB call)
+		$vibemap_id = isset($restaurant_meta['vibemap_id']) ? $restaurant_meta['vibemap_id'] : '';
+
+		// If no vibemap_id, use the WordPress post ID as the identifier
+		if (empty($vibemap_id)) {
+			$vibemap_id = 'hrw_' . $hrw_restaurant->ID;
+		}
+
+		// Get coordinates from pre-loaded meta (no DB calls)
+		$latitude = null;
+		$longitude = null;
+
+		// Check bulk-loaded coordinates first
+		if (isset($restaurant_meta['latitude']) && isset($restaurant_meta['longitude'])) {
+			$latitude = floatval($restaurant_meta['latitude']);
+			$longitude = floatval($restaurant_meta['longitude']);
+		}
+
+		// Try to parse from full_address field if available
+		if (($latitude === null || $longitude === null) && isset($restaurant_meta['full_address'])) {
+			$address_data = maybe_unserialize($restaurant_meta['full_address']);
+			if (is_array($address_data)) {
+				if (isset($address_data['lat']) && isset($address_data['lng'])) {
+					$latitude = floatval($address_data['lat']);
+					$longitude = floatval($address_data['lng']);
+				}
+			}
+		}
+
+		// If no valid coordinates, skip this restaurant
+		if ($latitude === null || $longitude === null || $latitude === 0 || $longitude === 0) {
+			error_log('HRW Merger: Skipping "' . $hrw_restaurant->post_title . '" - no valid coordinates');
+			return null;
+		}
+
+		// Get featured image from pre-loaded meta
+		$featured_image_url = '';
+
+		// Try photos_of_hrw_menu_items first
+		if (isset($restaurant_meta['photos_of_hrw_menu_items']) && !empty($restaurant_meta['photos_of_hrw_menu_items'])) {
+			$gallery_images = $restaurant_meta['photos_of_hrw_menu_items'];
+
+			// Handle JSON string or direct value
+			if (is_string($gallery_images)) {
+				$decoded = json_decode($gallery_images, true);
+				if (is_array($decoded) && !empty($decoded[0])) {
+					$featured_image_url = is_array($decoded[0]) && isset($decoded[0]['url']) ? $decoded[0]['url'] : $decoded[0];
+				}
+			}
+		}
+
+		// Fallback to restaurant_photo
+		if (empty($featured_image_url) && isset($restaurant_meta['restaurant_photo']) && !empty($restaurant_meta['restaurant_photo'])) {
+			$featured_image_url = $restaurant_meta['restaurant_photo'];
+		}
+
+		// Fallback to WordPress featured image (still need DB call for this)
+		if (empty($featured_image_url)) {
+			$featured_image_url = get_the_post_thumbnail_url($hrw_restaurant->ID, 'full');
+			if (!$featured_image_url) {
+				$featured_image_url = get_the_post_thumbnail_url($hrw_restaurant->ID, 'large') ?:
+					get_the_post_thumbnail_url($hrw_restaurant->ID, 'medium') ?: '';
+			}
+		}
+
+		// Use fallback image if still no image
+		if (empty($featured_image_url)) {
+			$fallback_image = get_option('vibemap_hrw_fallback_image', '');
+			if (!empty($fallback_image)) {
+				$featured_image_url = $fallback_image;
+			}
+		}
+
+		// Build the place structure
+		$place = [
+			'id' => $hrw_restaurant->ID,
+			'title' => $hrw_restaurant->post_title,
+			'slug' => $hrw_restaurant->post_name,
+			'content' => $hrw_restaurant->post_content,
+			'permalink' => get_permalink($hrw_restaurant->ID),
+			'featured_image' => $featured_image_url,
+			'meta' => [
+				'vibemap_place_id' => $vibemap_id,
+				'vibemap_place_latitude' => strval($latitude),
+				'vibemap_place_longitude' => strval($longitude),
+				'vibemap_place_address' => '',
+				'vibemap_place_full_address' => '',
+				'vibemap_place_city' => 'Houston',
+				'vibemap_place_state' => 'TX',
+				'vibemap_place_neighborhood' => '',
+				'vibemap_place_images' => '[]',
+				'hrw_post_id' => $hrw_restaurant->ID,
+				'is_hrw_restaurant' => true
+			],
+			'categories' => [],
+			'vibes' => [],
+			'tags' => []
+		];
+
+		// Process address from pre-loaded meta
+		if (isset($restaurant_meta['full_address']) && !empty($restaurant_meta['full_address'])) {
+			$address_data = maybe_unserialize($restaurant_meta['full_address']);
+			if (is_array($address_data) && isset($address_data['address'])) {
+				$place['meta']['vibemap_place_address'] = $address_data['address'];
+				$place['meta']['vibemap_place_full_address'] = $address_data['address'];
+			}
+		}
+
+		// Process neighborhood from pre-loaded meta
+		if (isset($restaurant_meta['neighborhood']) && !empty($restaurant_meta['neighborhood'])) {
+			$neighborhood = $restaurant_meta['neighborhood'];
+			if (is_array($neighborhood)) {
+				$place['meta']['vibemap_place_neighborhood'] = implode(', ', $neighborhood);
+			} else {
+				$place['meta']['vibemap_place_neighborhood'] = strval($neighborhood);
+			}
+		}
+
+		// Process vibes from pre-loaded meta
+		if (isset($restaurant_meta['vibes_from_vibemap']) && !empty($restaurant_meta['vibes_from_vibemap'])) {
+			$vibes_data = $restaurant_meta['vibes_from_vibemap'];
+
+			if (is_string($vibes_data)) {
+				// Handle pipe-separated string
+				$vibes_array = array_map('trim', explode('|', $vibes_data));
+				$place['vibes'] = [];
+				foreach ($vibes_array as $index => $vibe_name) {
+					if (!empty($vibe_name)) {
+						$place['vibes'][] = [
+							'id' => $index + 1,
+							'name' => $vibe_name,
+							'slug' => sanitize_title($vibe_name)
+						];
+					}
+				}
+			} elseif (is_array($vibes_data)) {
+				$place['vibes'] = $vibes_data;
+			}
+		}
+
+		// Add custom taxonomies (minimal ACF calls only if needed)
+		$place = self::add_custom_taxonomies_optimized($place, $hrw_restaurant, $used_custom_taxonomies);
+
+		return $place;
+	}
+
+	/**
+	 * Add custom taxonomies with minimal DB calls
+	 * 
+	 * @param array $place Place data being built
+	 * @param WP_Post $hrw_restaurant Restaurant post
+	 * @param array &$used_custom_taxonomies Reference to used taxonomies
+	 * @return array Updated place data
+	 */
+	private static function add_custom_taxonomies_optimized($place, $hrw_restaurant, &$used_custom_taxonomies)
+	{
+		// Only make ACF calls if absolutely necessary for custom taxonomies
+		// Most meta data should already be loaded via bulk query
+
+		// For now, keeping minimal functionality - can be expanded as needed
+		// The bulk meta loading has already eliminated most DB calls
+
+		return $place;
+	}
+
+	/**
+	 * PHASE 2A: Safe transformation using bulk meta with fallback to working methods
+	 * This function prioritizes bulk meta data but falls back to individual calls to prevent data loss
+	 * 
+	 * @param WP_Post $hrw_restaurant Restaurant post object
+	 * @param array $restaurant_meta Pre-loaded meta data from bulk query
+	 * @param array $used_custom_taxonomies Reference to track custom taxonomies
+	 * @return array|null Transformed place data or null if invalid
+	 */
+	private static function transform_hrw_restaurant_to_place_safe($hrw_restaurant, $restaurant_meta, &$used_custom_taxonomies)
+	{
+		// Start with basic place structure matching working legacy format
+		$place = [
+			'id' => $hrw_restaurant->ID, // Integer ID like legacy
+			'title' => $hrw_restaurant->post_title,
+			'slug' => $hrw_restaurant->post_name,
+			'content' => $hrw_restaurant->post_content,
+			'permalink' => get_permalink($hrw_restaurant->ID),
+			'featured_image' => '',
+			'meta' => [
+				// VibeMap required meta structure
+				'vibemap_place_id' => '',
+				'vibemap_place_latitude' => '',
+				'vibemap_place_longitude' => '',
+				'vibemap_place_address' => '',
+				'vibemap_place_full_address' => '',
+				'vibemap_place_city' => 'Houston',
+				'vibemap_place_state' => 'TX',
+				'vibemap_place_neighborhood' => '',
+				'vibemap_place_images' => '[]',
+				'hrw_post_id' => $hrw_restaurant->ID,
+				'is_hrw_restaurant' => true
+			],
+			'categories' => [],
+			'vibes' => [],
+			'tags' => []
+		];
+
+		// Get vibemap_id - prefer bulk meta, fallback to ACF
+		$vibemap_id = isset($restaurant_meta['vibemap_id']) && !empty($restaurant_meta['vibemap_id'])
+			? $restaurant_meta['vibemap_id']
+			: get_field('vibemap_id', $hrw_restaurant->ID);
+
+		if (empty($vibemap_id)) {
+			// Use post ID as fallback like the working version
+			$vibemap_id = 'hrw_' . $hrw_restaurant->ID;
+		}
+
+		// Set vibemap_place_id in meta
+		$place['meta']['vibemap_place_id'] = $vibemap_id;
+
+		// Get coordinates - prefer bulk meta, fallback to ACF
+		$latitude = isset($restaurant_meta['latitude']) && !empty($restaurant_meta['latitude'])
+			? (float) $restaurant_meta['latitude']
+			: (float) get_field('latitude', $hrw_restaurant->ID);
+
+		$longitude = isset($restaurant_meta['longitude']) && !empty($restaurant_meta['longitude'])
+			? (float) $restaurant_meta['longitude']
+			: (float) get_field('longitude', $hrw_restaurant->ID);
+
+		// Validate coordinates
+		if ($latitude === null || $longitude === null || $latitude === 0 || $longitude === 0) {
+			return null;
+		}
+
+		// Add coordinates to meta in VibeMap format
+		$place['meta']['vibemap_place_latitude'] = strval($latitude);
+		$place['meta']['vibemap_place_longitude'] = strval($longitude);
+
+		// Get address - prefer bulk meta, fallback to ACF
+		$full_address = isset($restaurant_meta['full_address']) && !empty($restaurant_meta['full_address'])
+			? $restaurant_meta['full_address']
+			: get_field('full_address', $hrw_restaurant->ID);
+
+		if (!empty($full_address)) {
+			// Process address data for VibeMap format
+			if (is_string($full_address) && strpos($full_address, 'a:') === 0) {
+				// Serialized data - unserialize it
+				$address_data = maybe_unserialize($full_address);
+				if (is_array($address_data) && isset($address_data['address'])) {
+					$place['meta']['vibemap_place_full_address'] = $address_data['address'];
+					$place['meta']['vibemap_place_address'] = $address_data['address'];
+				}
+			} else {
+				// Direct string or array
+				$address_string = is_array($full_address) && isset($full_address['address'])
+					? $full_address['address']
+					: (string) $full_address;
+				$place['meta']['vibemap_place_full_address'] = $address_string;
+				$place['meta']['vibemap_place_address'] = $address_string;
+			}
+		}
+
+		// Get neighborhood - prefer bulk meta, fallback to ACF
+		$neighborhood = isset($restaurant_meta['neighborhood']) && !empty($restaurant_meta['neighborhood'])
+			? $restaurant_meta['neighborhood']
+			: get_field('neighborhood', $hrw_restaurant->ID);
+
+		if (!empty($neighborhood)) {
+			// Handle array neighborhood data
+			$neighborhood_string = is_array($neighborhood) ? $neighborhood[0] : $neighborhood;
+
+			// Set neighborhood in meta and as taxonomy
+			$place['meta']['vibemap_place_neighborhood'] = $neighborhood_string;
+
+			// Safe sanitize_title with fallback
+			if (function_exists('sanitize_title')) {
+				$neighborhood_slug = sanitize_title($neighborhood_string);
+			} else {
+				// Fallback: Manual sanitization if WordPress function not available
+				$neighborhood_slug = strtolower(preg_replace('/[^a-zA-Z0-9\-_]/', '-', $neighborhood_string));
+				$neighborhood_slug = preg_replace('/-+/', '-', $neighborhood_slug);
+				$neighborhood_slug = trim($neighborhood_slug, '-');
+			}
+
+			$place['neighborhood'] = [[
+				'id' => $neighborhood_slug,
+				'name' => $neighborhood_string,
+				'slug' => $neighborhood_slug
+			]];
+		}
+
+		// Get vibes - prefer bulk meta, fallback to ACF
+		$vibes_from_vibemap = isset($restaurant_meta['vibes_from_vibemap']) && !empty($restaurant_meta['vibes_from_vibemap'])
+			? $restaurant_meta['vibes_from_vibemap']
+			: get_field('vibes_from_vibemap', $hrw_restaurant->ID);
+
+		if (!empty($vibes_from_vibemap)) {
+			// Process vibes into proper format for VibeMap
+			$vibes_data = maybe_unserialize($vibes_from_vibemap);
+			if (is_array($vibes_data)) {
+				$place['vibes'] = [];
+				foreach ($vibes_data as $index => $vibe_name) {
+					if (!empty($vibe_name)) {
+						$place['vibes'][] = [
+							'id' => $index + 1,
+							'name' => $vibe_name,
+							'slug' => sanitize_title($vibe_name)
+						];
+					}
+				}
+			} elseif (is_string($vibes_data)) {
+				// Handle pipe-separated string
+				$vibes_array = array_map('trim', explode('|', $vibes_data));
+				$place['vibes'] = [];
+				foreach ($vibes_array as $index => $vibe_name) {
+					if (!empty($vibe_name)) {
+						$place['vibes'][] = [
+							'id' => $index + 1,
+							'name' => $vibe_name,
+							'slug' => sanitize_title($vibe_name)
+						];
+					}
+				}
+			}
+		}
+
+		// Get featured image using safe method
+		$featured_image_url = self::get_featured_image_safe($hrw_restaurant, $restaurant_meta);
+
+		// Simplified image debugging (only for first 3 with images)
+		static $simple_debug_count = 0;
+		if ($simple_debug_count < 3 && !empty($featured_image_url)) {
+			error_log('HRW Image: Restaurant "' . $hrw_restaurant->post_title . '" has image: ' . substr($featured_image_url, -50));
+			$simple_debug_count++;
+		}
+
+		if (!empty($featured_image_url)) {
+			$place['featured_image'] = $featured_image_url;
+		} else {
+			// Use fallback image if available
+			$fallback_image = get_option('vibemap_hrw_fallback_image', '');
+			if (empty($fallback_image)) {
+				// Try common HRW placeholder locations
+				$theme_url = get_template_directory_uri();
+				$child_theme_url = get_stylesheet_directory_uri();
+
+				$possible_placeholders = [
+					$child_theme_url . '/assets/images/hrw-placeholder.jpg',
+					$child_theme_url . '/assets/images/restaurant-placeholder.jpg',
+					$theme_url . '/assets/images/hrw-placeholder.jpg',
+					$theme_url . '/assets/images/restaurant-placeholder.jpg',
+					'https://via.placeholder.com/400x300?text=Restaurant+Image'
+				];
+
+				foreach ($possible_placeholders as $placeholder) {
+					if (filter_var($placeholder, FILTER_VALIDATE_URL)) {
+						$fallback_image = $placeholder;
+						break;
+					}
+				}
+			}
+
+			if (!empty($fallback_image)) {
+				$place['featured_image'] = $fallback_image;
+			}
+		}
+
+		// Get additional meta fields
+		$additional_meta_keys = ['restaurant_title', 'cuisine_types', 'neighborhood', 'vibes_from_vibemap'];
+		foreach ($additional_meta_keys as $meta_key) {
+			$meta_value = isset($restaurant_meta[$meta_key]) && !empty($restaurant_meta[$meta_key])
+				? $restaurant_meta[$meta_key]
+				: get_post_meta($hrw_restaurant->ID, $meta_key, true);
+
+			if (!empty($meta_value)) {
+				$place['meta'][$meta_key] = $meta_value;
+			}
+		}
+
+		// Apply custom taxonomies using the working method (modifies by reference)
+		self::add_custom_taxonomies($place, $hrw_restaurant, $used_custom_taxonomies);
+
+		// Generate and add custom card HTML
+		try {
+			// First attempt: Use optimized path with bulk meta
+			$card_data = get_hrw_card_data($hrw_restaurant->ID, $restaurant_meta);
+
+			// Emergency diagnostic: Check if bulk meta path worked
+			if (!$card_data || empty($card_data['raw_data']['title'])) {
+				// Fallback: Use original method without bulk meta
+				$card_data = get_hrw_card_data($hrw_restaurant->ID, null);
+			}
+
+			if ($card_data) {
+				$custom_html = generate_hrw_card_html($card_data);
+				$place['meta']['custom_card_html'] = $custom_html;
+			}
+		} catch (Exception $e) {
+			error_log('HRW Emergency: Exception in card generation for ' . $hrw_restaurant->post_title . ': ' . $e->getMessage());
+			// Emergency fallback: Use original method
+			$card_data = get_hrw_card_data($hrw_restaurant->ID, null);
+			if ($card_data) {
+				$custom_html = generate_hrw_card_html($card_data);
+				$place['meta']['custom_card_html'] = $custom_html;
+			}
+		}
+
+		// Get custom taxonomies for top-level inclusion
+		$custom_taxonomies = vibemap_hrw_get_place_custom_taxonomies($hrw_restaurant->ID);
+
+		// Build final transformed structure like legacy (with custom taxonomies at top level)
+		$transformed_place = [
+			'id' => $place['id'],
+			'title' => $place['title'],
+			'slug' => $place['slug'],
+			'content' => $place['content'],
+			'permalink' => $place['permalink'],
+			'featured_image' => $place['featured_image'],
+			'categories' => $place['categories'],
+			'vibes' => $place['vibes'],
+			'tags' => $place['tags'],
+			'meta' => $place['meta']
+		];
+
+		// Add custom taxonomies at top level with original slugs as keys (CRITICAL FOR FILTERING)
+		foreach ($custom_taxonomies as $tax_slug => $terms) {
+			$transformed_place[$tax_slug] = $terms;
+		}
+
+		return $transformed_place;
+	}
+
+	/**
+	 * Safe featured image retrieval with comprehensive fallback system
+	 * 
+	 * @param WP_Post $hrw_restaurant Restaurant post object
+	 * @param array $restaurant_meta Pre-loaded meta data
+	 * @return string Featured image URL or empty string
+	 */
+	private static function get_featured_image_safe($hrw_restaurant, $restaurant_meta)
+	{
+		// PRIORITY 1: Try HRW ACF photos_of_hrw_menu_items field (primary HRW image source)
+		$gallery_images = get_field('photos_of_hrw_menu_items', $hrw_restaurant->ID);
+		if (!empty($gallery_images) && is_array($gallery_images)) {
+			$first_image = $gallery_images[0];
+			if (is_array($first_image) && isset($first_image['url'])) {
+				return $first_image['url'];
+			} else if (is_string($first_image)) {
+				return $first_image;
+			}
+		}
+
+		// PRIORITY 2: Try HRW ACF restaurant_photo field
+		$restaurant_photo = get_field('restaurant_photo', $hrw_restaurant->ID);
+		if (!empty($restaurant_photo)) {
+			if (is_array($restaurant_photo) && isset($restaurant_photo['url'])) {
+				return $restaurant_photo['url'];
+			} elseif (is_numeric($restaurant_photo)) {
+				return wp_get_attachment_url($restaurant_photo);
+			} else {
+				return $restaurant_photo;
+			}
+		}
+
+		// PRIORITY 3: WordPress featured image
+		$featured_image_url = get_the_post_thumbnail_url($hrw_restaurant->ID, 'full');
+		if (!$featured_image_url) {
+			$featured_image_url = get_the_post_thumbnail_url($hrw_restaurant->ID, 'large') ?:
+				get_the_post_thumbnail_url($hrw_restaurant->ID, 'medium') ?: '';
+		}
+
+		return $featured_image_url;
+	}
+
+	/**
+	 * LEGACY: Transform HRW restaurant directly to place structure (keeping for compatibility)
 	 * 
 	 * @param WP_Post $hrw_restaurant The HRW restaurant post
 	 * @param array &$used_custom_taxonomies Reference to used custom taxonomies

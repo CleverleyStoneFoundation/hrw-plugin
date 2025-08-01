@@ -1,0 +1,543 @@
+/*
+ * ====================================
+ * VIBEMAP MAP INTEGRATION STYLES
+ * ====================================
+ * 
+ * Custom CSS overrides for the Vibemap plugin
+ * on the Houston Restaurant Weeks staging site
+ * 
+ * Page: /vibemap-map-integration-test/
+ * Version: 1.0
+ */
+
+/* ====================================
+   BASE LAYOUT & CONTAINERS
+   ==================================== */
+
+/* Page-specific container */
+.page-id-[page-id] .vibemap-container,
+.vibemap-map-integration-test {
+	/* Add any page-specific styles here */
+	max-width: 100%;
+	margin: 0 auto;
+}
+
+/* Main Vibemap wrapper */
+div[class*="vibemap"],
+.vibemap-root {
+	/* Override main container styles */
+	font-family: inherit;
+}
+
+/* MAIN LAYOUT FIX: Left 40%, Right 60% - DESKTOP ONLY */
+@media (min-width: 1200px) {
+	.MuiGrid2-container[style*="grid-template-columns"] {
+		grid-template-columns: minmax(0px, 2fr) minmax(0px, 3fr) !important;
+		gap: 12px !important;
+	}
+
+	/* Alternative targeting if above doesn't work */
+	.map-layout .MuiGrid2-container {
+		grid-template-columns: minmax(0px, 2fr) minmax(0px, 3fr) !important;
+		gap: 12px !important;
+	}
+}
+
+/* ====================================
+   MAP STYLING
+   ==================================== */
+
+/* Map container */
+div[class*="map"],
+.vibemap-map,
+.mapboxgl-map {
+	/* Map styling overrides */
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+/* Map controls */
+.mapboxgl-ctrl-group {
+	/* Style map zoom/control buttons */
+	border-radius: 6px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ====================================
+   LISTING CARDS & SIDEBAR
+   ==================================== */
+
+/* Listing cards container */
+div[class*="listing"],
+div[class*="sidebar"],
+div[class*="card-container"] {
+	/* Card container styling */
+	background: #f8f9fa;
+	padding: 20px;
+	border-radius: 8px;
+}
+
+/* ====================================
+   CUSTOM SCROLLBAR STYLING
+   ==================================== */
+
+/* Main scrollable container for restaurant cards */
+.cardWrapper,
+.cards.list {
+	/* Add padding for scrollbar space */
+	padding-right: 8px !important;
+}
+
+/* Webkit scrollbar styling */
+.cardWrapper::-webkit-scrollbar,
+.cards.list::-webkit-scrollbar {
+	width: 8px !important;
+}
+
+.cardWrapper::-webkit-scrollbar-track,
+.cards.list::-webkit-scrollbar-track {
+	background: #f1f1f1 !important;
+	border-radius: 4px !important;
+}
+
+.cardWrapper::-webkit-scrollbar-thumb,
+.cards.list::-webkit-scrollbar-thumb {
+	background: #84bd41 !important;
+	border-radius: 4px !important;
+	border: 1px solid #f1f1f1 !important;
+}
+
+.cardWrapper::-webkit-scrollbar-thumb:hover,
+.cards.list::-webkit-scrollbar-thumb:hover {
+	background: #6fa835 !important;
+}
+
+/* Force scrollbar to always be visible */
+.cardWrapper,
+.cards.list {
+	overflow-y: scroll !important;
+	scrollbar-width: thin !important;
+	scrollbar-color: #84bd41 #f1f1f1 !important;
+	scrollbar-gutter: stable !important;
+}
+
+/* Additional webkit properties to prevent auto-hiding */
+.cardWrapper::-webkit-scrollbar,
+.cards.list::-webkit-scrollbar {
+	width: 8px !important;
+	-webkit-appearance: none !important;
+	background: #f1f1f1 !important;
+}
+
+/* Force scrollbar track to always be visible */
+.cardWrapper::-webkit-scrollbar-track,
+.cards.list::-webkit-scrollbar-track {
+	background: #f1f1f1 !important;
+	border-radius: 4px !important;
+	-webkit-box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* ====================================
+   TRANSFORM TO CLEAN LIST STYLE
+   ==================================== */
+
+/* Individual listing cards - completely square */
+.sing-card {
+	background: #fff !important;
+	border-radius: 0 !important;
+	box-shadow: none !important;
+	margin-bottom: 8px !important;
+	padding: 0 !important;
+	transition: all 0.3s ease;
+	border: 1px solid #e9ecef !important;
+	position: relative;
+	min-height: 80px !important;
+	overflow: hidden !important;
+}
+
+/* Force remove any inherited border radius - make everything completely square */
+.sing-card,
+.sing-card *,
+.sing-card .sing-card-inner,
+.sing-card .columns,
+.sing-card .column,
+.sing-card-image {
+	border-radius: 0 !important;
+}
+
+/* Card inner container */
+.sing-card-inner {
+	display: block !important;
+	height: auto !important;
+	min-height: auto !important;
+	padding: 12px !important;
+	text-decoration: none;
+	border-radius: 0 !important;
+}
+
+/* Main columns layout - make more compact */
+.sing-card .columns {
+	margin: 0 !important;
+	min-height: auto !important;
+}
+
+/* Image column - full height, wider (1/3 width) */
+.sing-card .column.image {
+	flex: 0 0 160px !important;
+	width: 160px !important;
+	height: 100% !important;
+	margin-right: 0 !important;
+	position: absolute !important;
+	left: 0 !important;
+	top: 0 !important;
+	z-index: 1 !important;
+}
+
+/* Image styling - full height covering green bar */
+.sing-card-image {
+	width: 160px !important;
+	height: 100% !important;
+	border-radius: 0 !important;
+	background-position: center !important;
+	position: absolute !important;
+	top: 0 !important;
+	left: 0 !important;
+}
+
+/* Text column - account for wider image only */
+.sing-card .column.text {
+	flex: 1 !important;
+	padding: 0 12px 0 0 !important;
+	margin-left: 160px !important;
+	/* Space for wider image only */
+	position: relative !important;
+	z-index: 2 !important;
+}
+
+/* Restaurant title - make prominent with chevron */
+.sing-card .title {
+	font-size: 16px !important;
+	font-weight: 600 !important;
+	margin: 4px 0 4px 0 !important;
+	line-height: 1.3 !important;
+	color: #333 !important;
+	position: relative;
+	padding-right: 30px;
+}
+
+.sing-card .title::after {
+	content: "›";
+	font-size: 28px;
+	color: #84bd41;
+	font-weight: bold;
+	position: absolute;
+	right: 0;
+	top: 50%;
+	transform: translateY(-50%);
+}
+
+/* Subtitle - smaller and muted */
+.sing-card .subtitle {
+	display: none !important;
+	/* Hide "Food", "Drink" etc. */
+}
+
+/* Address - hide to save space */
+.sing-card .address {
+	display: none !important;
+}
+
+/* Green accent bar at top - positioned after wider image */
+.sing-card::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 160px;
+	right: 0;
+	height: 3px;
+	background: #84bd41;
+	border-radius: 0;
+	z-index: 3;
+}
+
+/* HRW Fallback Logo Styling */
+.sing-card-image.hrw-fallback-logo {
+	object-fit: contain !important;
+	background-size: contain !important;
+}
+
+/* Reservation status - text black, icons green */
+.hrw-reservation-status {
+	font-size: 12px !important;
+	margin: 4px 0 !important;
+	font-weight: 500 !important;
+	color: #333 !important;
+}
+
+.hrw-reservation-status.walk-ins-welcome {
+	color: #333 !important;
+}
+
+.hrw-reservation-status.reservations-needed {
+	color: #333 !important;
+}
+
+/* Icons in reservation status and links - make them green with fixed width for alignment */
+.hrw-reservation-status i,
+.hrw-reservation-link i {
+	color: #84bd41 !important;
+	width: 14px !important;
+	text-align: center !important;
+	display: inline-block !important;
+}
+
+
+
+/* Reservation links - text style like walk-ins welcome */
+.hrw-reservation-link {
+	font-size: 12px !important;
+	padding: 0 !important;
+	margin-right: 12px !important;
+	border-radius: 0 !important;
+	background: transparent !important;
+	color: #666 !important;
+	text-decoration: none !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	gap: 6px !important;
+	font-weight: 500 !important;
+	outline: none !important;
+	border: none !important;
+}
+
+.hrw-reservation-link:hover {
+	color: #333 !important;
+	opacity: 1 !important;
+}
+
+/* Show tag pills for neighborhoods and cuisines with more spacing */
+.hrw-chips-container {
+	display: flex !important;
+	flex-wrap: wrap !important;
+	gap: 6px !important;
+	margin-top: 14px !important;
+}
+
+/* Style the chips to be subtle with neutral colors */
+.hrw-chip {
+	font-size: 10px !important;
+	padding: 2px 6px !important;
+	border-radius: 12px !important;
+	font-weight: 500 !important;
+	background: #fff !important;
+	color: #666 !important;
+	border: 1px solid #ddd !important;
+}
+
+/* Hide vibes and general tags, keep neighborhoods/cuisines */
+.chip-container.vibes,
+.chip-container.tags {
+	display: none !important;
+}
+
+/* Card hover effects - subtle */
+.sing-card:hover {
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+	transform: translateY(-1px);
+}
+
+/* Compact the inner column */
+.inner-column.sing-card-bottom {
+	padding: 0 !important;
+}
+
+/* Custom HTML content - compact */
+.sing-card .custom-html {
+	margin-top: 6px !important;
+}
+
+.hrw-card-content {
+	margin-top: 6px !important;
+}
+
+.hrw-reservation-section {
+	margin-bottom: 6px !important;
+}
+
+/* Make the reservation options stack vertically */
+.hrw-reservation-options {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: 2px !important;
+	margin-left: 0 !important;
+	margin-top: 4px !important;
+}
+
+/* Add email icon for Reserve by Email links that don't have an icon yet */
+.hrw-reservation-link[href*="mailto"]::before,
+.hrw-reservation-options a[href*="mailto"]::before {
+	content: "\f0e0";
+	font-family: "Font Awesome 5 Free";
+	font-weight: 900;
+	color: #84bd41 !important;
+	width: 14px !important;
+	text-align: center !important;
+	display: inline-block !important;
+}
+
+/* Add external link icon for Reserve Online - force it with pseudo-element */
+.hrw-reservation-link[target="_blank"]::before,
+.hrw-reservation-options a[target="_blank"]::before {
+	content: "\f35d";
+	font-family: "Font Awesome 5 Free";
+	font-weight: 900;
+	color: #84bd41 !important;
+	width: 14px !important;
+	text-align: center !important;
+	display: inline-block !important;
+}
+
+/* Hide the existing external link icon to avoid duplicates */
+.hrw-reservation-link[target="_blank"] i.fa-external-link,
+.hrw-reservation-options a[target="_blank"] i.fa-external-link {
+	display: none !important;
+}
+
+
+
+/* ====================================
+   LOADING & ERROR STATES
+   ==================================== */
+
+/* Loading state */
+.vibemap-loading,
+div[class*="loading"] {
+	text-align: center;
+	padding: 40px;
+	color: #666;
+	font-size: 16px;
+}
+
+/* Error state */
+.vibemap-error,
+div[class*="error"] {
+	background: #f8d7da;
+	color: #721c24;
+	padding: 20px;
+	border-radius: 8px;
+	border: 1px solid #f5c6cb;
+	text-align: center;
+}
+
+/* ====================================
+   FILTER PILLS STYLING
+   ==================================== */
+
+/* Filter pills ONLY (above the cards) - white background with border */
+.filters .chip,
+.filter-section .chip,
+.filter-tabs .chip {
+	background: #01a9e0 !important;
+	border: 1px solid #ddd !important;
+	color: #fff !important;
+}
+
+.chip .icon svg,
+.chip .icon svg path {
+	fill: #fff !important;
+}
+
+/* Filter pills selection state - use brand green */
+.filters .chip.active,
+.filters .chip.selected,
+.filter-section .chip.active,
+.filter-tabs .chip.active,
+.filter-section .chip.selected,
+.filter-tabs .chip.selected {
+	background: #84bd41 !important;
+	color: #fff !important;
+	border-color: #84bd41 !important;
+}
+
+/* Restaurant card pills - white background with light gray outline */
+.chip-container .chip {
+	background: #fff !important;
+	color: #666 !important;
+	border: 1px solid #ddd !important;
+}
+
+.wp-block-vibemap-places-map-native {
+	margin-bottom: 40px;
+	margin-top: 40px;
+}
+
+.filter-count-container button {
+	color: rgb(220, 53, 69) !important;
+	background: white !important;
+	border: 1px solid !important;
+}
+
+/* ====================================
+   RESPONSIVE DESIGN
+   ==================================== */
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+	.vibemap-container {
+		padding: 10px;
+	}
+
+	div[class*="place-card"] {
+		margin-bottom: 12px;
+		padding: 12px;
+	}
+
+	div[class*="map"] {
+		height: 300px;
+		border-radius: 4px;
+	}
+}
+
+/* Tablet adjustments */
+@media (min-width: 769px) and (max-width: 1024px) {
+	.vibemap-container {
+		padding: 15px;
+	}
+}
+
+/* Desktop adjustments */
+@media (min-width: 1025px) {
+	.vibemap-container {
+		padding: 20px;
+	}
+}
+
+/* Misc */
+
+.page-header {
+	display: none;
+}
+
+@media (min-width: 1200px) {
+
+	.site-main.post-13478 {
+		max-width: 90%;
+	}
+}
+
+@media (max-width: 768px) {
+	.wp-block-vibemap-places-map-native {
+		height: 120vh !important;
+		margin-top: 20px;
+	}
+
+	.wp-block-vibemap-places-map-native>div {
+		height: 100% !important;
+	}
+
+	.map-layout.list-mode {
+		height: 100% !important;
+	}
+
+
+}

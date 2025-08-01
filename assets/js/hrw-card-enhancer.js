@@ -3,6 +3,8 @@
  * 
  * Enhances VibeMap cards with HRW restaurant card data
  * 
+ * Rob thinks this file is not needed anymore.
+ * 
  * @package HRW_Plugin
  * @since 1.0.0
  */
@@ -488,6 +490,7 @@
 			HRWCardEnhancer.enhanceExistingCards();
 		}, 1000);
 	});
+
 
 	// Make HRWCardEnhancer available globally
 	window.HRWCardEnhancer = HRWCardEnhancer;
