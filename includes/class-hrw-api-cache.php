@@ -42,7 +42,9 @@ class HRW_API_Cache
 	public static function get_cached_response($request)
 	{
 		$cache_key = self::generate_cache_key($request);
-		$cached_data = wp_cache_get($cache_key, self::CACHE_GROUP);
+
+		// Use WordPress transients for persistent caching (works on all hosts)
+		$cached_data = get_transient($cache_key);
 
 		if ($cached_data !== false) {
 			// Add cache hit information for debugging
@@ -54,13 +56,14 @@ class HRW_API_Cache
 				$cached_data['debug_info']['cache_hit'] = true;
 				$cached_data['debug_info']['cache_timestamp'] = current_time('mysql');
 				$cached_data['debug_info']['performance_improvement'] = '96% faster (cached response)';
+				$cached_data['debug_info']['cache_type'] = 'transient';
 			}
 
-			error_log('HRW Cache: Cache HIT for key: ' . $cache_key);
+			error_log('HRW Cache: Cache HIT (transient) for key: ' . $cache_key);
 			return new WP_REST_Response($cached_data, 200);
 		}
 
-		error_log('HRW Cache: Cache MISS for key: ' . $cache_key);
+		error_log('HRW Cache: Cache MISS (transient) for key: ' . $cache_key);
 		return false;
 	}
 
@@ -84,14 +87,16 @@ class HRW_API_Cache
 			$response_data['debug_info']['cached_at'] = current_time('mysql');
 			$response_data['debug_info']['cache_expiry'] = self::CACHE_EXPIRY;
 			$response_data['debug_info']['cache_version'] = self::CACHE_VERSION;
+			$response_data['debug_info']['cache_type'] = 'transient';
 		}
 
-		$success = wp_cache_set($cache_key, $response_data, self::CACHE_GROUP, self::CACHE_EXPIRY);
+		// Use WordPress transients for persistent caching
+		$success = set_transient($cache_key, $response_data, self::CACHE_EXPIRY);
 
 		if ($success) {
-			error_log('HRW Cache: Successfully cached response for key: ' . $cache_key);
+			error_log('HRW Cache: Successfully cached (transient) response for key: ' . $cache_key);
 		} else {
-			error_log('HRW Cache: Failed to cache response for key: ' . $cache_key);
+			error_log('HRW Cache: Failed to cache (transient) response for key: ' . $cache_key);
 		}
 
 		return $success;
@@ -161,16 +166,19 @@ class HRW_API_Cache
 	/**
 	 * Check if caching is available
 	 * 
-	 * @return bool True if object caching is available
+	 * @return bool True if transient caching is available
 	 */
 	public static function is_cache_available()
 	{
-		// Test if object cache is working
+		// Test if transient cache is working
 		$test_key = 'hrw_cache_test_' . time();
 		$test_value = 'test_value';
 
-		wp_cache_set($test_key, $test_value, self::CACHE_GROUP, 60);
-		$retrieved = wp_cache_get($test_key, self::CACHE_GROUP);
+		set_transient($test_key, $test_value, 60);
+		$retrieved = get_transient($test_key);
+
+		// Clean up test transient
+		delete_transient($test_key);
 
 		return ($retrieved === $test_value);
 	}
