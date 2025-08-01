@@ -711,6 +711,9 @@ class HRW_Data_Merger
 	 */
 	private static function transform_hrw_restaurant_to_place_safe($hrw_restaurant, $restaurant_meta, &$used_custom_taxonomies)
 	{
+		// EMERGENCY DIAGNOSTIC: Log entry to transformation function
+		error_log('HRW Transform: ENTERING transformation for ' . $hrw_restaurant->post_title . ' (ID: ' . $hrw_restaurant->ID . ')');
+
 		// Start with basic place structure matching working legacy format
 		$place = [
 			'id' => $hrw_restaurant->ID, // Integer ID like legacy
@@ -748,6 +751,9 @@ class HRW_Data_Merger
 			$vibemap_id = 'hrw_' . $hrw_restaurant->ID;
 		}
 
+		// EMERGENCY DIAGNOSTIC: Log successful vibemap_id resolution
+		error_log('HRW Transform: Step 1 COMPLETE - vibemap_id resolved: ' . $vibemap_id);
+
 		// Set vibemap_place_id in meta
 		$place['meta']['vibemap_place_id'] = $vibemap_id;
 
@@ -760,10 +766,17 @@ class HRW_Data_Merger
 			? (float) $restaurant_meta['longitude']
 			: (float) get_field('longitude', $hrw_restaurant->ID);
 
+		// EMERGENCY DIAGNOSTIC: Log coordinates before validation
+		error_log('HRW Transform: Step 2 - Coordinates for ' . $hrw_restaurant->post_title . ': lat=' . var_export($latitude, true) . ', lng=' . var_export($longitude, true));
+
 		// Validate coordinates
 		if ($latitude === null || $longitude === null || $latitude === 0 || $longitude === 0) {
+			error_log('HRW Transform: Step 2 FAILED - Invalid coordinates for ' . $hrw_restaurant->post_title . ', returning null');
 			return null;
 		}
+
+		// EMERGENCY DIAGNOSTIC: Log successful coordinates validation
+		error_log('HRW Transform: Step 2 COMPLETE - Valid coordinates for ' . $hrw_restaurant->post_title);
 
 		// Add coordinates to meta in VibeMap format
 		$place['meta']['vibemap_place_latitude'] = strval($latitude);
@@ -808,6 +821,9 @@ class HRW_Data_Merger
 			]];
 		}
 
+		// EMERGENCY DIAGNOSTIC: Log step 3 completion
+		error_log('HRW Transform: Step 3 COMPLETE - Address/neighborhood processing for ' . $hrw_restaurant->post_title);
+
 		// Get vibes - prefer bulk meta, fallback to ACF
 		$vibes_from_vibemap = isset($restaurant_meta['vibes_from_vibemap']) && !empty($restaurant_meta['vibes_from_vibemap'])
 			? $restaurant_meta['vibes_from_vibemap']
@@ -843,8 +859,13 @@ class HRW_Data_Merger
 			}
 		}
 
+		// EMERGENCY DIAGNOSTIC: Log step 4 completion
+		error_log('HRW Transform: Step 4 COMPLETE - Vibes processing for ' . $hrw_restaurant->post_title);
+
 		// Get featured image using safe method
+		error_log('HRW Transform: Step 5 STARTING - Featured image processing for ' . $hrw_restaurant->post_title);
 		$featured_image_url = self::get_featured_image_safe($hrw_restaurant, $restaurant_meta);
+		error_log('HRW Transform: Step 5 COMPLETE - Featured image result: ' . ($featured_image_url ?: 'none'));
 
 		// DEBUG: Log image processing for restaurants (focusing on ones that might have images)
 		static $image_debug_count = 0;
@@ -895,10 +916,16 @@ class HRW_Data_Merger
 			}
 		}
 
+		// EMERGENCY DIAGNOSTIC: Log step 6 completion
+		error_log('HRW Transform: Step 6 COMPLETE - Meta fields processing for ' . $hrw_restaurant->post_title);
+
 		// Apply custom taxonomies using the working method (modifies by reference)
+		error_log('HRW Transform: Step 7 STARTING - Custom taxonomies for ' . $hrw_restaurant->post_title);
 		self::add_custom_taxonomies($place, $hrw_restaurant, $used_custom_taxonomies);
+		error_log('HRW Transform: Step 7 COMPLETE - Custom taxonomies for ' . $hrw_restaurant->post_title);
 
 		// Generate and add custom card HTML (EMERGENCY DIAGNOSTIC + FALLBACK)
+		error_log('HRW Transform: Step 8 STARTING - Card generation for ' . $hrw_restaurant->post_title);
 		try {
 			// First attempt: Use optimized path with bulk meta
 			$card_data = get_hrw_card_data($hrw_restaurant->ID, $restaurant_meta);
@@ -926,7 +953,11 @@ class HRW_Data_Merger
 			}
 		}
 
+		// EMERGENCY DIAGNOSTIC: Log step 8 completion
+		error_log('HRW Transform: Step 8 COMPLETE - Card generation for ' . $hrw_restaurant->post_title);
+
 		// Get custom taxonomies for top-level inclusion
+		error_log('HRW Transform: Step 9 STARTING - Final custom taxonomies for ' . $hrw_restaurant->post_title);
 		$custom_taxonomies = vibemap_hrw_get_place_custom_taxonomies($hrw_restaurant->ID);
 
 		// Build final transformed structure like legacy (with custom taxonomies at top level)
@@ -947,6 +978,9 @@ class HRW_Data_Merger
 		foreach ($custom_taxonomies as $tax_slug => $terms) {
 			$transformed_place[$tax_slug] = $terms;
 		}
+
+		// EMERGENCY DIAGNOSTIC: Log successful completion
+		error_log('HRW Transform: SUCCESSFUL COMPLETION for ' . $hrw_restaurant->post_title . ' (ID: ' . $hrw_restaurant->ID . ')');
 
 		return $transformed_place;
 	}
