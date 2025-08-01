@@ -86,13 +86,15 @@ function vibemap_hrw_enqueue_transform_override()
     }
 
     // Enqueue the frontend optimizer for performance improvements
-    wp_enqueue_script(
-        'hrw-frontend-optimizer',
-        plugin_dir_url(__FILE__) . 'assets/js/hrw-frontend-optimizer.js',
-        [], // No dependencies - runs independently
-        '2.0.0-' . time(), // Cache busting for testing
-        false // Load in head for early initialization
-    );
+    // DISABLED - Performance data shows API (7.5s) is bottleneck, not frontend (1.1s)
+    // Frontend optimizer solves wrong problem and adds unnecessary overhead
+    // wp_enqueue_script(
+    //     'hrw-frontend-optimizer',
+    //     plugin_dir_url(__FILE__) . 'assets/js/hrw-frontend-optimizer.js',
+    //     [], // No dependencies - runs independently
+    //     '2.0.0-' . time(), // Cache busting for testing
+    //     false // Load in head for early initialization
+    // );
 
     // Enqueue custom HRW CSS files (order matters for priority)
     // Load card enhancer first (lower priority)
