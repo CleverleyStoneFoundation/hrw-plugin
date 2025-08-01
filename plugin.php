@@ -969,7 +969,13 @@ function vibemap_hrw_get_place_custom_taxonomies($post_id)
                 // Handle both string and array formats
                 $name = is_array($term) ? ($term['name'] ?? $term[0] ?? '') : $term;
                 if (!empty($name)) {
-                    $slug = sanitize_title($name);
+                    // For price points, preserve the formatting in slug for display
+                    if ($field_name === '_menu_price_points') {
+                        $slug = $name; // Keep "Brunch ($25)" as both name and slug
+                    } else {
+                        $slug = sanitize_title($name); // Normal sanitization for other fields
+                    }
+
                     // Use the field name as is for the taxonomy key
                     $taxonomy_key = $field_name;
 
