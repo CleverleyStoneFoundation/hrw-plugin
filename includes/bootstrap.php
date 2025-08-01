@@ -58,6 +58,7 @@ class HRW_Plugin_Bootstrap
 			'class-hrw-json-timing.php',
 			'class-hrw-wordpress-timing.php',
 			'class-hrw-response-headers.php',
+			'class-hrw-cache-invalidation.php',
 		];
 
 		foreach ($classes as $class_file) {
@@ -95,6 +96,11 @@ class HRW_Plugin_Bootstrap
 		// Initialize response header optimization to reduce hosting overhead
 		if (class_exists('HRW_Response_Headers')) {
 			HRW_Response_Headers::init();
+		}
+
+		// Initialize cache invalidation system for immediate data updates
+		if (class_exists('HRW_Cache_Invalidation')) {
+			HRW_Cache_Invalidation::init();
 		}
 	}
 
