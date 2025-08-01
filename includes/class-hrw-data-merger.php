@@ -95,7 +95,7 @@ class HRW_Data_Merger
 		}
 
 		// EMERGENCY FALLBACK OPTION: Set to true to completely bypass bulk meta optimization
-		$emergency_bypass_bulk_meta = true; // ACTIVATED: Emergency bypass due to production fatal error
+		$emergency_bypass_bulk_meta = false; // FIXED: ACF serialization issue resolved, bulk meta re-enabled
 
 		if ($emergency_bypass_bulk_meta) {
 			error_log('HRW Emergency: Using complete fallback - bypassing all bulk meta optimization');

@@ -166,7 +166,18 @@ class HRW_Restaurant_Loader
 		// Organize results into [post_id][meta_key] = meta_value structure
 		$organized_meta = [];
 		foreach ($results as $row) {
-			$organized_meta[$row->post_id][$row->meta_key] = $row->meta_value;
+			// CRITICAL FIX: Unserialize data just like ACF's get_field() does
+			$value = $row->meta_value;
+
+			// Check if this looks like serialized data and unserialize it
+			if (is_string($value) && (strpos($value, 'a:') === 0 || strpos($value, 's:') === 0 || strpos($value, 'i:') === 0 || strpos($value, 'O:') === 0)) {
+				$unserialized = maybe_unserialize($value);
+				if ($unserialized !== false) {
+					$value = $unserialized;
+				}
+			}
+
+			$organized_meta[$row->post_id][$row->meta_key] = $value;
 		}
 
 		error_log('HRW Loader: Bulk loaded ' . count($results) . ' meta entries for ' . count($restaurant_ids) . ' restaurants in single query');
