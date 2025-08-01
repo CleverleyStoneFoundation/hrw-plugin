@@ -123,7 +123,9 @@ class HRW_API_Cache
 		ksort($cache_params);
 
 		// Include cache version in key for easy cache busting
-		$cache_params['__cache_version'] = self::CACHE_VERSION;
+		// Use dynamic version from option (updated by clear_cache) instead of constant
+		$current_cache_version = get_option('hrw_cache_version', self::CACHE_VERSION);
+		$cache_params['__cache_version'] = $current_cache_version;
 
 		// Generate hash of parameters
 		$params_hash = md5(serialize($cache_params));
