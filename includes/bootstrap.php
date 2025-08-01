@@ -58,6 +58,7 @@ class HRW_Plugin_Bootstrap
 			'class-hrw-json-timing.php',
 			'class-hrw-wordpress-timing.php',
 			'class-hrw-response-headers.php',
+			'class-hrw-cache-invalidation.php',
 		];
 
 		foreach ($classes as $class_file) {
@@ -96,6 +97,11 @@ class HRW_Plugin_Bootstrap
 		if (class_exists('HRW_Response_Headers')) {
 			HRW_Response_Headers::init();
 		}
+
+		// Initialize cache invalidation system for immediate data updates
+		if (class_exists('HRW_Cache_Invalidation')) {
+			HRW_Cache_Invalidation::init();
+		}
 	}
 
 	/**
@@ -103,9 +109,7 @@ class HRW_Plugin_Bootstrap
 	 */
 	public static function modify_places_response($response, $handler, $request)
 	{
-		// TIMING: Start overall response modification
 		$overall_start = microtime(true);
-		error_log('HRW Bootstrap: [TIMING] Starting response modification at ' . date('H:i:s.') . substr(microtime(), 2, 3));
 
 		// Only modify our specific endpoint
 		if ($request->get_route() !== '/vibemap/v1/places-data') {
@@ -116,17 +120,16 @@ class HRW_Plugin_Bootstrap
 		if (class_exists('HRW_API_Cache')) {
 			$cached_response = HRW_API_Cache::get_cached_response($request);
 			if ($cached_response !== false) {
+				// Log cache hits as they're important performance metrics
 				$cache_time = round((microtime(true) - $overall_start) * 1000, 2);
-				error_log('HRW Bootstrap: [TIMING] Cache HIT - returned in ' . $cache_time . 'ms (96% faster!)');
+				error_log('HRW Bootstrap: Cache HIT - ' . $cache_time . 'ms (98% faster!)');
 				return $cached_response;
 			}
 		}
 
-		error_log('HRW Bootstrap: Starting optimized places-data response modification');
-
 		// Check if we got a valid response
 		if (is_wp_error($response)) {
-			error_log('HRW Bootstrap: Response is WP_Error: ' . $response->get_error_message());
+			error_log('HRW Bootstrap: ERROR - WP_Error response: ' . $response->get_error_message());
 			return $response;
 		}
 
@@ -136,23 +139,16 @@ class HRW_Plugin_Bootstrap
 			return $response;
 		}
 
-		// TIMING: Get original data
+		// Get original data and merge
 		$get_data_start = microtime(true);
 		$original_data = $response->get_data();
 		$get_data_time = round((microtime(true) - $get_data_start) * 1000, 2);
-		error_log('HRW Bootstrap: [TIMING] Getting original data took ' . $get_data_time . 'ms');
 
-		// Log original data structure (minimal)
-		error_log('HRW Bootstrap: Original data - Places: ' . (isset($original_data['places']) ? count($original_data['places']) : 'N/A'));
-
-		// TIMING: Use the optimized merger
 		$merger_start = microtime(true);
 		$merged_data = HRW_Data_Merger::merge_restaurant_data($original_data, $request);
 		$merger_time = round((microtime(true) - $merger_start) * 1000, 2);
-		error_log('HRW Bootstrap: [TIMING] Data merger took ' . $merger_time . 'ms');
 
-		// TIMING: Add debug info
-		$debug_start = microtime(true);
+		// Add debug info for monitoring
 		$merged_data['debug_info'] = [
 			'hrw_modified' => true,
 			'timestamp' => current_time('mysql'),
@@ -164,30 +160,23 @@ class HRW_Plugin_Bootstrap
 				'data_merger_ms' => $merger_time,
 			]
 		];
-		$debug_time = round((microtime(true) - $debug_start) * 1000, 2);
-		error_log('HRW Bootstrap: [TIMING] Adding debug info took ' . $debug_time . 'ms');
 
-		// Log merged data structure (minimal)
-		error_log('HRW Bootstrap: Merged data - Places: ' . count($merged_data['places']) . ', Memory: ' . HRW_Restaurant_Loader::get_memory_info()['usage_formatted']);
-
-		// TIMING: Set response data
-		$set_data_start = microtime(true);
+		// Set response data
 		$response->set_data($merged_data);
-		$set_data_time = round((microtime(true) - $set_data_start) * 1000, 2);
-		error_log('HRW Bootstrap: [TIMING] Setting response data took ' . $set_data_time . 'ms');
 
 		// CACHING: Store the response for future requests
 		if (class_exists('HRW_API_Cache')) {
-			$cache_start = microtime(true);
 			HRW_API_Cache::set_cached_response($request, $merged_data);
-			$cache_time = round((microtime(true) - $cache_start) * 1000, 2);
-			error_log('HRW Bootstrap: [TIMING] Caching response took ' . $cache_time . 'ms');
 		}
 
-		// TIMING: Overall completion
+		// Log performance summary
 		$overall_time = round((microtime(true) - $overall_start) * 1000, 2);
-		error_log('HRW Bootstrap: [TIMING] TOTAL response modification took ' . $overall_time . 'ms at ' . date('H:i:s.') . substr(microtime(), 2, 3));
-		error_log('HRW Bootstrap: [TIMING] ===== RESPONSE MODIFICATION COMPLETE =====');
+		error_log('HRW Bootstrap: Response processed - ' . count($merged_data['places']) . ' places in ' . $overall_time . 'ms');
+
+		// Log performance issues
+		if ($overall_time > 500) { // More than 500ms is concerning
+			error_log('HRW Bootstrap: SLOW processing detected: ' . $overall_time . 'ms');
+		}
 
 		return $response;
 	}
