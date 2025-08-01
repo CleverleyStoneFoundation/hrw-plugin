@@ -34,28 +34,40 @@ class HRW_Data_Merger
 	 */
 	public static function merge_restaurant_data($original_data, $request)
 	{
-		// error_log('HRW Merger: Starting optimized process - transforming HRW restaurants directly');
+		// TIMING: Start merge process
+		$merge_start = microtime(true);
+		error_log('HRW Merger: [TIMING] Starting merge process at ' . date('H:i:s.') . substr(microtime(), 2, 3));
 
-		// Get HRW restaurants using the optimized loader
+		// TIMING: Get HRW restaurants using the optimized loader
+		$loader_start = microtime(true);
 		$filters = [
 			'year' => '2025',
 			'status' => '4'
 		];
-
 		$hrw_restaurants = HRW_Restaurant_Loader::get_restaurants($filters);
+		$loader_time = round((microtime(true) - $loader_start) * 1000, 2);
+		error_log('HRW Merger: [TIMING] Restaurant loading took ' . $loader_time . 'ms');
 
 		if (empty($hrw_restaurants)) {
 			error_log('HRW Merger: No HRW restaurants found, returning empty results');
 			return self::get_empty_response();
 		}
 
-		// error_log('HRW Merger: Found ' . count($hrw_restaurants) . ' HRW restaurants matching filters (year: 2025, status: 4)');
-
-		// Build data directly from HRW restaurants (no vibemap_id required)
+		// TIMING: Build data directly from HRW restaurants
+		$process_start = microtime(true);
 		$merged_data = self::process_restaurants_directly($hrw_restaurants, $request);
+		$process_time = round((microtime(true) - $process_start) * 1000, 2);
+		error_log('HRW Merger: [TIMING] Restaurant processing took ' . $process_time . 'ms');
 
-		// Log final results
+		// TIMING: Log final results
+		$final_start = microtime(true);
 		self::log_final_results($merged_data, count($hrw_restaurants));
+		$final_time = round((microtime(true) - $final_start) * 1000, 2);
+		error_log('HRW Merger: [TIMING] Final logging took ' . $final_time . 'ms');
+
+		// TIMING: Overall merge completion
+		$merge_time = round((microtime(true) - $merge_start) * 1000, 2);
+		error_log('HRW Merger: [TIMING] TOTAL merge process took ' . $merge_time . 'ms at ' . date('H:i:s.') . substr(microtime(), 2, 3));
 
 		return $merged_data;
 	}
@@ -273,13 +285,27 @@ class HRW_Data_Merger
 		// Add HRW custom taxonomies
 		self::add_custom_taxonomies($merged_place, $hrw_restaurant, $used_custom_taxonomies);
 
-		// Generate and add custom card HTML
+		// TIMING: Generate and add custom card HTML
+		$card_start = microtime(true);
 		$card_data = get_hrw_card_data($hrw_restaurant->ID);
+		$card_data_time = round((microtime(true) - $card_start) * 1000, 2);
+
 		if ($card_data) {
+			$html_start = microtime(true);
 			$custom_html = generate_hrw_card_html($card_data);
+			$html_time = round((microtime(true) - $html_start) * 1000, 2);
+
 			// Add to meta for generic access
 			$merged_place['meta']['custom_card_html'] = $custom_html;
-			error_log('HRW Merger: Added custom card HTML for "' . $hrw_restaurant->post_title . '"');
+
+			$total_card_time = round((microtime(true) - $card_start) * 1000, 2);
+
+			// Only log for first few restaurants to avoid spam
+			static $card_timing_logged = 0;
+			if ($card_timing_logged < 3) {
+				error_log('HRW Merger: [TIMING] Card generation for "' . $hrw_restaurant->post_title . '" - Data: ' . $card_data_time . 'ms, HTML: ' . $html_time . 'ms, Total: ' . $total_card_time . 'ms');
+				$card_timing_logged++;
+			}
 		}
 
 		// Minimal logging for merged place (no JSON encoding)
@@ -425,14 +451,22 @@ class HRW_Data_Merger
 	 */
 	private static function build_final_response($merged_places, $used_categories, $used_vibes, $used_tags, $used_custom_taxonomies, $request)
 	{
-		// Apply preview limit if requested
+		// TIMING: Start final response building
+		$final_start = microtime(true);
+		error_log('HRW Merger: [TIMING] Starting final response building at ' . date('H:i:s.') . substr(microtime(), 2, 3));
+
+		// TIMING: Apply preview limit if requested
+		$preview_start = microtime(true);
 		$preview_limit = $request->get_param('preview_limit');
 		if ($preview_limit && $preview_limit > 0 && count($merged_places) > $preview_limit) {
 			error_log('HRW Merger: Applying preview limit of ' . $preview_limit);
 			$merged_places = array_slice($merged_places, 0, $preview_limit);
 		}
+		$preview_time = round((microtime(true) - $preview_start) * 1000, 2);
+		error_log('HRW Merger: [TIMING] Preview limit processing took ' . $preview_time . 'ms');
 
-		// Build HRW custom taxonomies for the response
+		// TIMING: Build HRW custom taxonomies for the response
+		$taxonomy_start = microtime(true);
 		$hrw_taxonomies = [];
 		foreach ($used_custom_taxonomies as $tax_slug => $terms) {
 			$all_terms = array_values($terms);
@@ -455,8 +489,11 @@ class HRW_Data_Merger
 				error_log('HRW Merger: Added taxonomy "' . $tax_slug . '" with display name "' . $display_name . '" and ' . count($all_terms) . ' terms');
 			}
 		}
+		$taxonomy_time = round((microtime(true) - $taxonomy_start) * 1000, 2);
+		error_log('HRW Merger: [TIMING] Taxonomy building took ' . $taxonomy_time . 'ms');
 
-		// Build response structure
+		// TIMING: Build response structure
+		$structure_start = microtime(true);
 		$response = [
 			'places'     => $merged_places,
 			'categories' => [], // Empty for HRW-only response
@@ -464,11 +501,20 @@ class HRW_Data_Merger
 			'tags'       => [], // Empty for HRW-only response
 			'taxonomies' => $hrw_taxonomies // HRW custom taxonomies
 		];
+		$structure_time = round((microtime(true) - $structure_start) * 1000, 2);
+		error_log('HRW Merger: [TIMING] Response structure building took ' . $structure_time . 'ms');
 
-		// Add total count if requested
+		// TIMING: Add total count if requested
+		$count_start = microtime(true);
 		if ($request->get_param('total_count')) {
 			$response['total_count'] = count($response['places']);
 		}
+		$count_time = round((microtime(true) - $count_start) * 1000, 2);
+		error_log('HRW Merger: [TIMING] Total count calculation took ' . $count_time . 'ms');
+
+		// TIMING: Final response completion
+		$final_time = round((microtime(true) - $final_start) * 1000, 2);
+		error_log('HRW Merger: [TIMING] TOTAL final response building took ' . $final_time . 'ms at ' . date('H:i:s.') . substr(microtime(), 2, 3));
 
 		return $response;
 	}

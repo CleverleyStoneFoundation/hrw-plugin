@@ -115,11 +115,20 @@ function vibemap_hrw_enqueue_transform_override()
         'all' // Media type
     );
 
+    // Enqueue Gutenberg/React timing for performance debugging
+    wp_enqueue_script(
+        'hrw-gutenberg-timing',
+        plugin_dir_url(__FILE__) . 'assets/js/hrw-gutenberg-timing.js',
+        array(),
+        '1.2.0-' . time(), // Cache busting for testing
+        false // Load in head for early initialization
+    );
+
     // Add performance monitoring flag for debugging
     if (defined('WP_DEBUG') && WP_DEBUG) {
         wp_add_inline_script(
-            'hrw-frontend-optimizer',
-            'console.log("🎯 HRW Frontend Optimizer loaded in debug mode");',
+            'hrw-gutenberg-timing',
+            'console.log("🎯 HRW Gutenberg Timing loaded for frontend performance debugging");',
             'after'
         );
     }
