@@ -823,11 +823,24 @@ class HRW_Data_Merger
 			error_log('HRW Transform: Step 2.9 - Processing neighborhood for ' . $hrw_restaurant->post_title);
 			// Set neighborhood in meta and as taxonomy
 			$place['meta']['vibemap_place_neighborhood'] = $neighborhood;
-			error_log('HRW Transform: Step 2.10 - About to call sanitize_title for ' . $hrw_restaurant->post_title);
+			error_log('HRW Transform: Step 2.10 - About to call sanitize_title for ' . $hrw_restaurant->post_title . ' with value: ' . var_export($neighborhood, true));
+
+			// CRITICAL FIX: Use safe sanitize_title with fallback
+			if (function_exists('sanitize_title')) {
+				$neighborhood_slug = sanitize_title($neighborhood);
+			} else {
+				// Fallback: Manual sanitization if WordPress function not available
+				$neighborhood_slug = strtolower(preg_replace('/[^a-zA-Z0-9\-_]/', '-', $neighborhood));
+				$neighborhood_slug = preg_replace('/-+/', '-', $neighborhood_slug);
+				$neighborhood_slug = trim($neighborhood_slug, '-');
+			}
+
+			error_log('HRW Transform: Step 2.10.1 - Sanitized neighborhood slug: ' . $neighborhood_slug);
+
 			$place['neighborhood'] = [[
-				'id' => sanitize_title($neighborhood),
+				'id' => $neighborhood_slug,
 				'name' => $neighborhood,
-				'slug' => sanitize_title($neighborhood)
+				'slug' => $neighborhood_slug
 			]];
 			error_log('HRW Transform: Step 2.11 - Neighborhood processing complete for ' . $hrw_restaurant->post_title);
 		}
