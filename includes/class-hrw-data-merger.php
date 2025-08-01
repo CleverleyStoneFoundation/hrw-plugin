@@ -827,8 +827,8 @@ class HRW_Data_Merger
 		// Apply custom taxonomies using the working method (modifies by reference)
 		self::add_custom_taxonomies($place, $hrw_restaurant, $used_custom_taxonomies);
 
-		// Generate and add custom card HTML (THIS IS THE CRITICAL HRW DATA!)
-		$card_data = get_hrw_card_data($hrw_restaurant->ID);
+		// Generate and add custom card HTML (OPTIMIZED: Pass bulk meta data)
+		$card_data = get_hrw_card_data($hrw_restaurant->ID, $restaurant_meta);
 		if ($card_data) {
 			$custom_html = generate_hrw_card_html($card_data);
 			$place['meta']['custom_card_html'] = $custom_html;

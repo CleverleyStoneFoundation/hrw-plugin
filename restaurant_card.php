@@ -15,34 +15,52 @@ if (function_exists('get_field') && function_exists('get_queried_object') && !is
 }
 
 /**
- * Get HRW Restaurant Card Data for VibeMap Integration
+ * Get HRW Restaurant Card Data for VibeMap Integration (OPTIMIZED)
  * 
  * This function provides clean, structured data for VibeMap team integration.
  * Call this function with a restaurant post ID to get formatted card data.
  * 
  * @param int $post_id Restaurant post ID
+ * @param array $meta_data Pre-loaded meta data (optional, for optimization)
  * @return array Structured card data ready for VibeMap integration
  */
-function get_hrw_card_data($post_id)
+function get_hrw_card_data($post_id, $meta_data = null)
 {
 	// Ensure we have a valid post ID
 	if (!$post_id) {
 		return null;
 	}
 
-	// Get all restaurant data
-	$data = [
-		'title' => function_exists('get_field') ? get_field('restaurant_title', $post_id) : '',
-		'menu_types' => function_exists('get_field') ? get_field('_hrw_menus', $post_id) : [],
-		'reservations' => function_exists('get_field') ? get_field('reservations', $post_id) : '',
-		'reservation_links' => function_exists('get_field') ? get_field('reservation_links', $post_id) : '',
-		'reservation_phone' => function_exists('get_field') ? get_field('reservation_phone_number', $post_id) : '',
-		'reservation_notes' => function_exists('get_field') ? get_field('reservation_notes', $post_id) : '',
-		'cuisine' => function_exists('get_field') ? get_field('cuisine_types', $post_id) : [],
-		'neighborhood' => function_exists('get_field') ? get_field('neighborhood', $post_id) : [],
-		'vibes' => function_exists('get_field') ? get_field('vibes_from_vibemap', $post_id) : [],
-		'photo' => function_exists('get_field') ? get_field('restaurant_photo', $post_id) : ''
-	];
+	// Use pre-loaded meta data if available, otherwise fallback to individual queries
+	if ($meta_data && is_array($meta_data)) {
+		// OPTIMIZED PATH: Use bulk-loaded meta (no database calls)
+		$data = [
+			'title' => isset($meta_data['restaurant_title']) ? $meta_data['restaurant_title'] : '',
+			'menu_types' => isset($meta_data['_hrw_menus']) ? $meta_data['_hrw_menus'] : [],
+			'reservations' => isset($meta_data['reservations']) ? $meta_data['reservations'] : '',
+			'reservation_links' => isset($meta_data['reservation_links']) ? $meta_data['reservation_links'] : '',
+			'reservation_phone' => isset($meta_data['reservation_phone_number']) ? $meta_data['reservation_phone_number'] : '',
+			'reservation_notes' => isset($meta_data['reservation_notes']) ? $meta_data['reservation_notes'] : '',
+			'cuisine' => isset($meta_data['cuisine_types']) ? $meta_data['cuisine_types'] : [],
+			'neighborhood' => isset($meta_data['neighborhood']) ? $meta_data['neighborhood'] : [],
+			'vibes' => isset($meta_data['vibes_from_vibemap']) ? $meta_data['vibes_from_vibemap'] : [],
+			'photo' => isset($meta_data['restaurant_photo']) ? $meta_data['restaurant_photo'] : ''
+		];
+	} else {
+		// FALLBACK PATH: Individual ACF calls (for backward compatibility)
+		$data = [
+			'title' => function_exists('get_field') ? get_field('restaurant_title', $post_id) : '',
+			'menu_types' => function_exists('get_field') ? get_field('_hrw_menus', $post_id) : [],
+			'reservations' => function_exists('get_field') ? get_field('reservations', $post_id) : '',
+			'reservation_links' => function_exists('get_field') ? get_field('reservation_links', $post_id) : '',
+			'reservation_phone' => function_exists('get_field') ? get_field('reservation_phone_number', $post_id) : '',
+			'reservation_notes' => function_exists('get_field') ? get_field('reservation_notes', $post_id) : '',
+			'cuisine' => function_exists('get_field') ? get_field('cuisine_types', $post_id) : [],
+			'neighborhood' => function_exists('get_field') ? get_field('neighborhood', $post_id) : [],
+			'vibes' => function_exists('get_field') ? get_field('vibes_from_vibemap', $post_id) : [],
+			'photo' => function_exists('get_field') ? get_field('restaurant_photo', $post_id) : ''
+		];
+	}
 
 	// Build structured card data
 	return [

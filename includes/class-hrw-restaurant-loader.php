@@ -193,8 +193,17 @@ class HRW_Restaurant_Loader
 			// Restaurant details
 			'neighborhood',
 			'vibes_from_vibemap',
-			// Note: Image fields removed from bulk loading to avoid conflicts
-			// Images now use direct ACF calls for proper HRW photo access
+
+			// HRW Card Data Fields (eliminates 10 queries per restaurant)
+			'restaurant_title',
+			'_hrw_menus',
+			'reservations',
+			'reservation_links',
+			'reservation_phone_number',
+			'reservation_notes',
+			'cuisine_types',
+			'restaurant_photo',
+			'photos_of_hrw_menu_items',
 
 			// Menu status (for filtering)
 			'_menu_year',
