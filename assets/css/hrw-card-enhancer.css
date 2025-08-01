@@ -1,0 +1,332 @@
+/**
+ * HRW Restaurant Card Enhancer Styles
+ * 
+ * Styles for enhanced VibeMap cards with HRW restaurant card data
+ * 
+ * @package HRW_Plugin
+ * @since 1.0.0
+ */
+
+/* Base Enhanced Card Styles */
+.hrw-enhanced-card {
+	position: relative;
+	transition: all 0.3s ease;
+}
+
+.hrw-enhanced-card:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* HRW Subtitle Styles */
+.hrw-subtitle {
+	font-size: 0.9em;
+	color: #666;
+	margin-bottom: 8px;
+	font-weight: 500;
+}
+
+/* Chip Container Styles */
+.chip-container {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 12px 0;
+	padding: 0;
+	list-style: none;
+}
+
+.chip-container.menu_type {
+	order: 1;
+}
+
+.chip-container.cuisine {
+	order: 2;
+}
+
+.chip-container.neighborhood {
+	order: 3;
+}
+
+.chip-container.vibe {
+	order: 4;
+}
+
+/* Individual Chip Styles */
+.chip {
+	display: inline-flex;
+	align-items: center;
+	background-color: #f0f0f0;
+	color: #333;
+	padding: 4px 8px;
+	border-radius: 12px;
+	font-size: 0.75em;
+	font-weight: 500;
+	transition: all 0.2s ease;
+	white-space: nowrap;
+}
+
+.chip:hover {
+	transform: scale(1.05);
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.chip i {
+	margin-right: 4px;
+	font-size: 0.9em;
+}
+
+/* Chip Type Specific Colors */
+.chip-container.menu_type .chip {
+	background-color: #4CAF50;
+	color: white;
+}
+
+.chip-container.cuisine .chip {
+	background-color: #FF9800;
+	color: white;
+}
+
+.chip-container.neighborhood .chip {
+	background-color: #2196F3;
+	color: white;
+}
+
+.chip-container.vibe .chip {
+	background-color: #9C27B0;
+	color: white;
+}
+
+/* Reservation Status Styles */
+.hrw-reservation-status {
+	display: inline-flex;
+	align-items: center;
+	margin-bottom: 8px;
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+.hrw-reservation-status i {
+	margin-right: 6px;
+}
+
+.hrw-walk-ins .hrw-reservation-status {
+	color: #4CAF50;
+}
+
+.hrw-reservations-needed .hrw-reservation-status {
+	color: #FF9800;
+}
+
+/* Reservation Link Styles */
+.hrw-reservation-link {
+	display: inline-flex;
+	align-items: center;
+	padding: 8px 12px;
+	margin: 4px 8px 4px 0;
+	background-color: #f8f9fa;
+	color: #333;
+	text-decoration: none;
+	border-radius: 6px;
+	font-size: 0.85em;
+	transition: all 0.2s ease;
+	border: 1px solid #dee2e6;
+}
+
+.hrw-reservation-link:hover {
+	background-color: #e9ecef;
+	transform: translateY(-1px);
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	text-decoration: none;
+}
+
+.hrw-reservation-link i {
+	margin-right: 6px;
+}
+
+.hrw-reservation-link.online {
+	background-color: #007bff;
+	color: white;
+	border-color: #007bff;
+}
+
+.hrw-reservation-link.online:hover {
+	background-color: #0056b3;
+	border-color: #0056b3;
+}
+
+.hrw-reservation-link.phone {
+	background-color: #28a745;
+	color: white;
+	border-color: #28a745;
+}
+
+.hrw-reservation-link.phone:hover {
+	background-color: #1e7e34;
+	border-color: #1e7e34;
+}
+
+/* Card Layout Enhancements */
+.hrw-enhanced-card .sing-card-bottom,
+.hrw-enhanced-card .inner-column,
+.hrw-enhanced-card .card-content {
+	padding-bottom: 12px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+	.chip-container {
+		gap: 4px;
+		margin: 8px 0;
+	}
+
+	.chip {
+		padding: 3px 6px;
+		font-size: 0.7em;
+	}
+
+	.hrw-reservation-link {
+		padding: 6px 10px;
+		font-size: 0.8em;
+		margin: 3px 6px 3px 0;
+	}
+
+	.hrw-reservation-status {
+		font-size: 0.85em;
+	}
+}
+
+@media (max-width: 480px) {
+	.chip-container {
+		gap: 3px;
+		margin: 6px 0;
+	}
+
+	.chip {
+		padding: 2px 5px;
+		font-size: 0.65em;
+	}
+
+	.hrw-reservation-link {
+		padding: 5px 8px;
+		font-size: 0.75em;
+		margin: 2px 4px 2px 0;
+	}
+}
+
+/* Card States */
+.hrw-enhanced-card.hrw-walk-ins {
+	border-left: 4px solid #4CAF50;
+}
+
+.hrw-enhanced-card.hrw-reservations-needed {
+	border-left: 4px solid #FF9800;
+}
+
+.hrw-enhanced-card.hrw-has-reservations:before {
+	content: "";
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 12px;
+	height: 12px;
+	background-color: #007bff;
+	border-radius: 50%;
+	display: block;
+}
+
+/* Loading States */
+.hrw-enhanced-card.loading .chip-container {
+	opacity: 0.5;
+}
+
+/* Animation for dynamically added elements */
+.chip-container {
+	animation: fadeInUp 0.3s ease-out;
+}
+
+.hrw-reservation-status {
+	animation: fadeInUp 0.3s ease-out 0.1s both;
+}
+
+.hrw-reservation-link {
+	animation: fadeInUp 0.3s ease-out 0.2s both;
+}
+
+@keyframes fadeInUp {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+	.hrw-enhanced-card {
+		background-color: #2d3748;
+		color: #e2e8f0;
+	}
+
+	.hrw-subtitle {
+		color: #a0aec0;
+	}
+
+	.chip {
+		background-color: #4a5568;
+		color: #e2e8f0;
+	}
+
+	.hrw-reservation-link {
+		background-color: #4a5568;
+		color: #e2e8f0;
+		border-color: #4a5568;
+	}
+
+	.hrw-reservation-link:hover {
+		background-color: #2d3748;
+		border-color: #2d3748;
+	}
+}
+
+/* Integration with common card layouts */
+.sing-card.hrw-enhanced-card .chip-container {
+	margin-top: 12px;
+}
+
+.wp-block-vibemap-single-card.hrw-enhanced-card .chip-container {
+	margin-top: 10px;
+}
+
+/* Accessibility improvements */
+.chip,
+.hrw-reservation-link {
+	outline: 2px solid transparent;
+	outline-offset: 2px;
+}
+
+.chip:focus,
+.hrw-reservation-link:focus {
+	outline: 2px solid #007bff;
+	outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+	.hrw-enhanced-card {
+		box-shadow: none;
+		border: 1px solid #ddd;
+	}
+
+	.chip-container {
+		display: none;
+	}
+
+	.hrw-reservation-link {
+		display: none;
+	}
+}
