@@ -301,6 +301,7 @@ div[class*="card-container"] {
 	align-items: center !important;
 	gap: 6px !important;
 	font-weight: 500 !important;
+	outline: none !important;
 }
 
 .hrw-reservation-link:hover {
@@ -530,5 +531,11 @@ div[class*="error"] {
 
 	.map-layout.list-mode {
 		height: 100% !important;
+	}
+
+	/* HRW Fallback Logo Styling */
+	.sing-card-image.hrw-fallback-logo {
+		object-fit: contain !important;
+		background-size: contain !important;
 	}
 }
