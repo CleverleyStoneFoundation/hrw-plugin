@@ -55,6 +55,7 @@ class HRW_Plugin_Bootstrap
 			'class-hrw-restaurant-loader.php',
 			'class-hrw-data-merger.php',
 			'class-hrw-api-cache.php',
+			'class-hrw-json-timing.php',
 		];
 
 		foreach ($classes as $class_file) {
@@ -78,6 +79,11 @@ class HRW_Plugin_Bootstrap
 
 		// Add admin notice if classes are missing
 		add_action('admin_notices', [__CLASS__, 'check_class_dependencies']);
+
+		// Initialize JSON timing to measure serialization performance
+		if (class_exists('HRW_JSON_Timing')) {
+			HRW_JSON_Timing::init();
+		}
 	}
 
 	/**
@@ -92,6 +98,16 @@ class HRW_Plugin_Bootstrap
 		// Only modify our specific endpoint
 		if ($request->get_route() !== '/vibemap/v1/places-data') {
 			return $response;
+		}
+
+		// CACHING: Check for cached response first
+		if (class_exists('HRW_API_Cache')) {
+			$cached_response = HRW_API_Cache::get_cached_response($request);
+			if ($cached_response !== false) {
+				$cache_time = round((microtime(true) - $overall_start) * 1000, 2);
+				error_log('HRW Bootstrap: [TIMING] Cache HIT - returned in ' . $cache_time . 'ms (96% faster!)');
+				return $cached_response;
+			}
 		}
 
 		error_log('HRW Bootstrap: Starting optimized places-data response modification');
@@ -147,6 +163,14 @@ class HRW_Plugin_Bootstrap
 		$response->set_data($merged_data);
 		$set_data_time = round((microtime(true) - $set_data_start) * 1000, 2);
 		error_log('HRW Bootstrap: [TIMING] Setting response data took ' . $set_data_time . 'ms');
+
+		// CACHING: Store the response for future requests
+		if (class_exists('HRW_API_Cache')) {
+			$cache_start = microtime(true);
+			HRW_API_Cache::set_cached_response($request, $merged_data);
+			$cache_time = round((microtime(true) - $cache_start) * 1000, 2);
+			error_log('HRW Bootstrap: [TIMING] Caching response took ' . $cache_time . 'ms');
+		}
 
 		// TIMING: Overall completion
 		$overall_time = round((microtime(true) - $overall_start) * 1000, 2);
