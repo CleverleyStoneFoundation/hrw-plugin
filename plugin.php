@@ -96,6 +96,15 @@ function vibemap_hrw_enqueue_transform_override()
     //     false // Load in head for early initialization
     // );
 
+    // Enqueue HRW Logo Fix (lightweight fallback logo detection)
+    wp_enqueue_script(
+        'hrw-logo-fix',
+        plugin_dir_url(__FILE__) . 'assets/js/hrw-logo-fix.js',
+        [], // No dependencies - pure JavaScript
+        '1.0.0-' . time(), // Cache busting for testing
+        true // Load in footer after DOM is ready
+    );
+
     // Enqueue custom HRW CSS files (order matters for priority)
     // Load card enhancer first (lower priority)
     wp_enqueue_style(
