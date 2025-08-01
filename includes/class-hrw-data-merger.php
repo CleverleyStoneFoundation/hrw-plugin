@@ -34,40 +34,38 @@ class HRW_Data_Merger
 	 */
 	public static function merge_restaurant_data($original_data, $request)
 	{
-		// TIMING: Start merge process
 		$merge_start = microtime(true);
-		error_log('HRW Merger: [TIMING] Starting merge process at ' . date('H:i:s.') . substr(microtime(), 2, 3));
 
-		// TIMING: Get HRW restaurants using the optimized loader
-		$loader_start = microtime(true);
+		// Get HRW restaurants using the optimized loader
 		$filters = [
 			'year' => '2025',
 			'status' => '4'
 		];
 		$hrw_restaurants = HRW_Restaurant_Loader::get_restaurants($filters);
-		$loader_time = round((microtime(true) - $loader_start) * 1000, 2);
-		error_log('HRW Merger: [TIMING] Restaurant loading took ' . $loader_time . 'ms');
 
 		if (empty($hrw_restaurants)) {
 			error_log('HRW Merger: No HRW restaurants found, returning empty results');
 			return self::get_empty_response();
 		}
 
-		// TIMING: Build data directly from HRW restaurants
-		$process_start = microtime(true);
+		// Build data directly from HRW restaurants
 		$merged_data = self::process_restaurants_directly($hrw_restaurants, $request);
-		$process_time = round((microtime(true) - $process_start) * 1000, 2);
-		error_log('HRW Merger: [TIMING] Restaurant processing took ' . $process_time . 'ms');
 
-		// TIMING: Log final results
-		$final_start = microtime(true);
+		// Log final results
 		self::log_final_results($merged_data, count($hrw_restaurants));
-		$final_time = round((microtime(true) - $final_start) * 1000, 2);
-		error_log('HRW Merger: [TIMING] Final logging took ' . $final_time . 'ms');
 
-		// TIMING: Overall merge completion
+		// Log performance summary
 		$merge_time = round((microtime(true) - $merge_start) * 1000, 2);
-		error_log('HRW Merger: [TIMING] TOTAL merge process took ' . $merge_time . 'ms at ' . date('H:i:s.') . substr(microtime(), 2, 3));
+
+		// Only log detailed timing in debug mode
+		if (defined('WP_DEBUG') && WP_DEBUG) {
+			error_log('HRW Merger: Processed ' . count($hrw_restaurants) . ' restaurants in ' . $merge_time . 'ms');
+		}
+
+		// Log performance issues even in production
+		if ($merge_time > 1000) { // More than 1 second
+			error_log('HRW Merger: SLOW merge detected: ' . $merge_time . 'ms for ' . count($hrw_restaurants) . ' restaurants');
+		}
 
 		return $merged_data;
 	}
