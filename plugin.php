@@ -76,12 +76,27 @@ function vibemap_hrw_init()
 }
 
 /**
- * Enqueue HRW transform override
+ * Enqueue HRW Frontend Optimizer
  */
 function vibemap_hrw_enqueue_transform_override()
 {
-    // No longer needed - transformation happens server-side
-    // error_log('HRW: Transform handled server-side');
+    // Always enqueue the frontend optimizer for performance improvements
+    wp_enqueue_script(
+        'hrw-frontend-optimizer',
+        plugin_dir_url(__FILE__) . 'assets/js/hrw-frontend-optimizer.js',
+        [], // No dependencies - runs independently
+        '2.0.0-' . time(), // Cache busting for testing
+        false // Load in head for early initialization
+    );
+
+    // Add performance monitoring flag for debugging
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        wp_add_inline_script(
+            'hrw-frontend-optimizer',
+            'console.log("🎯 HRW Frontend Optimizer loaded in debug mode");',
+            'after'
+        );
+    }
 }
 
 /**

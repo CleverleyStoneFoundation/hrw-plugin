@@ -67,7 +67,7 @@ class HRW_Restaurant_Loader
 	}
 
 	/**
-	 * Get restaurant IDs with optional filtering
+	 * Get restaurant IDs with optimized database-level filtering
 	 * 
 	 * @param array $filters Optional filters to apply
 	 * @return array Array of restaurant IDs
@@ -76,66 +76,130 @@ class HRW_Restaurant_Loader
 	{
 		$args = [
 			'post_type'      => 'hrw_restaurants',
-			'posts_per_page' => -1,
+			'posts_per_page' => self::MAX_RESTAURANTS,
 			'post_status'    => 'publish',
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
 			'cache_results'  => false,
+			'orderby'        => 'title',
+			'order'          => 'ASC',
 		];
 
-		// Apply filters if provided
+		// OPTIMIZATION: Build meta_query for database-level filtering (eliminates N+1 queries)
+		$meta_query = ['relation' => 'AND'];
+
+		// Apply year filter at database level
+		if (!empty($filters['year'])) {
+			$meta_query[] = [
+				'key'     => '_menu_year',
+				'value'   => $filters['year'],
+				'compare' => '='
+			];
+		}
+
+		// Apply status filter at database level  
+		if (!empty($filters['status'])) {
+			$meta_query[] = [
+				'key'     => '_menu_status',
+				'value'   => $filters['status'],
+				'compare' => '='
+			];
+		}
+
+		// Apply custom meta_query if provided
 		if (!empty($filters['meta_query'])) {
-			$args['meta_query'] = $filters['meta_query'];
+			$meta_query = array_merge($meta_query, $filters['meta_query']);
+		}
+
+		// Only add meta_query if we have filters
+		if (count($meta_query) > 1) {
+			$args['meta_query'] = $meta_query;
+			error_log('HRW Loader: Using database-level meta filtering: ' . json_encode($meta_query));
 		}
 
 		$restaurant_ids = get_posts($args);
-		error_log('HRW Loader: Found ' . count($restaurant_ids) . ' total restaurant IDs');
-
-		// Apply additional filtering if needed
-		if (!empty($filters['year']) || !empty($filters['status'])) {
-			$restaurant_ids = self::filter_by_meta($restaurant_ids, $filters);
-		}
+		error_log('HRW Loader: Found ' . count($restaurant_ids) . ' restaurant IDs with optimized database filtering');
 
 		return $restaurant_ids;
 	}
 
 	/**
-	 * Filter restaurant IDs by meta values
+	 * REMOVED: filter_by_meta - replaced with database-level meta_query filtering
+	 * This eliminates the N+1 query problem where we were making individual 
+	 * get_post_meta() calls for each restaurant ID.
+	 */
+
+	/**
+	 * Bulk load all meta data for multiple restaurants in a single query
+	 * This eliminates N+1 queries during transformation
 	 * 
 	 * @param array $restaurant_ids Array of restaurant IDs
-	 * @param array $filters Filters to apply
-	 * @return array Filtered array of restaurant IDs
+	 * @param array $meta_keys Array of meta keys to load
+	 * @return array Organized meta data [post_id][meta_key] = meta_value
 	 */
-	private static function filter_by_meta($restaurant_ids, $filters)
+	public static function get_bulk_restaurant_meta($restaurant_ids, $meta_keys = [])
 	{
-		$filtered_ids = [];
-
-		foreach ($restaurant_ids as $id) {
-			$include = true;
-
-			// Check year filter
-			if (!empty($filters['year'])) {
-				$menu_year = get_post_meta($id, '_menu_year', true);
-				if ($menu_year !== $filters['year']) {
-					$include = false;
-				}
-			}
-
-			// Check status filter
-			if (!empty($filters['status'])) {
-				$menu_status = get_post_meta($id, '_menu_status', true);
-				if ($menu_status !== $filters['status']) {
-					$include = false;
-				}
-			}
-
-			if ($include) {
-				$filtered_ids[] = $id;
-			}
+		if (empty($restaurant_ids) || empty($meta_keys)) {
+			return [];
 		}
 
-		error_log('HRW Loader: Filtered to ' . count($filtered_ids) . ' restaurants after meta filtering');
-		return $filtered_ids;
+		global $wpdb;
+
+		// Sanitize inputs
+		$ids_placeholder = implode(',', array_fill(0, count($restaurant_ids), '%d'));
+		$keys_placeholder = implode(',', array_fill(0, count($meta_keys), '%s'));
+
+		// Prepare the query
+		$query = "
+			SELECT post_id, meta_key, meta_value 
+			FROM {$wpdb->postmeta} 
+			WHERE post_id IN ($ids_placeholder) 
+			AND meta_key IN ($keys_placeholder)
+		";
+
+		// Combine parameters: IDs first, then keys
+		$params = array_merge($restaurant_ids, $meta_keys);
+
+		// Execute bulk query
+		$results = $wpdb->get_results($wpdb->prepare($query, $params));
+
+		// Organize results into [post_id][meta_key] = meta_value structure
+		$organized_meta = [];
+		foreach ($results as $row) {
+			$organized_meta[$row->post_id][$row->meta_key] = $row->meta_value;
+		}
+
+		error_log('HRW Loader: Bulk loaded ' . count($results) . ' meta entries for ' . count($restaurant_ids) . ' restaurants in single query');
+
+		return $organized_meta;
+	}
+
+	/**
+	 * Get all meta keys needed for restaurant transformation
+	 * 
+	 * @return array Array of meta keys used during transformation
+	 */
+	public static function get_transformation_meta_keys()
+	{
+		return [
+			// VibeMap integration
+			'vibemap_id',
+
+			// Coordinates
+			'latitude',
+			'longitude',
+			'full_address',
+
+			// Restaurant details
+			'neighborhood',
+			'vibes_from_vibemap',
+			// Note: Image fields removed from bulk loading to avoid conflicts
+			// Images now use direct ACF calls for proper HRW photo access
+
+			// Menu status (for filtering)
+			'_menu_year',
+			'_menu_status'
+		];
 	}
 
 	/**
