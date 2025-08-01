@@ -86,6 +86,22 @@ class HRW_Data_Merger
 	 */
 	private static function process_restaurants_directly($hrw_restaurants, $request)
 	{
+		// EMERGENCY DIAGNOSTIC: Check if we have restaurants at all
+		error_log('HRW Emergency Diagnostic: process_restaurants_directly called with ' . count($hrw_restaurants) . ' restaurants');
+
+		if (empty($hrw_restaurants)) {
+			error_log('HRW Emergency: NO RESTAURANTS PROVIDED - this is the root cause of empty map!');
+			return self::build_final_response([], [], [], [], [], $request);
+		}
+
+		// EMERGENCY FALLBACK OPTION: Set to true to completely bypass bulk meta optimization
+		$emergency_bypass_bulk_meta = true; // ACTIVATED: Emergency bypass due to production fatal error
+
+		if ($emergency_bypass_bulk_meta) {
+			error_log('HRW Emergency: Using complete fallback - bypassing all bulk meta optimization');
+			return self::process_restaurants_legacy_method($hrw_restaurants, $request);
+		}
+
 		$transformed_places = [];
 		$used_categories = [];
 		$used_vibes = [];
@@ -102,7 +118,18 @@ class HRW_Data_Merger
 			return $restaurant->ID;
 		}, $hrw_restaurants);
 		$meta_keys = HRW_Restaurant_Loader::get_transformation_meta_keys();
+
+		// EMERGENCY DIAGNOSTIC: Log bulk meta attempt
+		error_log('HRW Emergency: Attempting bulk meta load for ' . count($restaurant_ids) . ' restaurant IDs with ' . count($meta_keys) . ' meta keys');
+		error_log('HRW Emergency: Meta keys being loaded: ' . implode(', ', $meta_keys));
+
 		$bulk_meta = HRW_Restaurant_Loader::get_bulk_restaurant_meta($restaurant_ids, $meta_keys);
+
+		// EMERGENCY DIAGNOSTIC: Check bulk meta results
+		error_log('HRW Emergency: Bulk meta loaded for ' . count($bulk_meta) . ' restaurants');
+		if (count($bulk_meta) < count($restaurant_ids)) {
+			error_log('HRW Emergency: WARNING - Bulk meta count mismatch! Expected: ' . count($restaurant_ids) . ', Got: ' . count($bulk_meta));
+		}
 
 		// Step 3: Profile bulk meta loading performance
 		$bulk_meta_time = microtime(true) - $query_start_time;
@@ -171,6 +198,50 @@ class HRW_Data_Merger
 		error_log('HRW Merger: • Bulk meta queries: ' . $bulk_meta_queries);
 		error_log('HRW Merger: • Transformation queries: ' . ($total_queries - $bulk_meta_queries));
 		error_log('HRW Merger: • Places successfully transformed: ' . count($transformed_places) . '/' . count($hrw_restaurants));
+
+		// Build final response
+		return self::build_final_response($transformed_places, $used_categories, $used_vibes, $used_tags, $used_custom_taxonomies, $request);
+	}
+
+	/**
+	 * EMERGENCY: Legacy processing method using original working transformation
+	 * This bypasses all bulk meta optimization and uses individual ACF calls
+	 * 
+	 * @param array $hrw_restaurants Array of HRW restaurant posts
+	 * @param WP_REST_Request $request The REST request object
+	 * @return array Processed data using legacy method
+	 */
+	private static function process_restaurants_legacy_method($hrw_restaurants, $request)
+	{
+		error_log('HRW Emergency: Using legacy processing method for ' . count($hrw_restaurants) . ' restaurants');
+
+		$transformed_places = [];
+		$used_categories = [];
+		$used_vibes = [];
+		$used_tags = [];
+		$used_custom_taxonomies = [];
+
+		foreach ($hrw_restaurants as $index => $hrw_restaurant) {
+			// Monitor memory usage and break if getting too high
+			$memory_info = HRW_Restaurant_Loader::get_memory_info();
+
+			if ($memory_info['is_high']) {
+				error_log('HRW Legacy: Memory usage too high (' . $memory_info['usage_formatted'] . ' of ' . $memory_info['limit'] . '), stopping at restaurant ' . ($index + 1));
+				break;
+			}
+
+			// Use legacy transformation (individual ACF calls)
+			$transformed_place = self::transform_hrw_restaurant_to_place($hrw_restaurant, $used_custom_taxonomies);
+
+			if ($transformed_place) {
+				$transformed_places[] = $transformed_place;
+
+				// Track used taxonomies
+				self::track_used_taxonomies($transformed_place, $used_categories, $used_vibes, $used_tags);
+			}
+		}
+
+		error_log('HRW Legacy: Successfully processed ' . count($transformed_places) . '/' . count($hrw_restaurants) . ' restaurants');
 
 		// Build final response
 		return self::build_final_response($transformed_places, $used_categories, $used_vibes, $used_tags, $used_custom_taxonomies, $request);
@@ -827,11 +898,32 @@ class HRW_Data_Merger
 		// Apply custom taxonomies using the working method (modifies by reference)
 		self::add_custom_taxonomies($place, $hrw_restaurant, $used_custom_taxonomies);
 
-		// Generate and add custom card HTML (OPTIMIZED: Pass bulk meta data)
-		$card_data = get_hrw_card_data($hrw_restaurant->ID, $restaurant_meta);
-		if ($card_data) {
-			$custom_html = generate_hrw_card_html($card_data);
-			$place['meta']['custom_card_html'] = $custom_html;
+		// Generate and add custom card HTML (EMERGENCY DIAGNOSTIC + FALLBACK)
+		try {
+			// First attempt: Use optimized path with bulk meta
+			$card_data = get_hrw_card_data($hrw_restaurant->ID, $restaurant_meta);
+
+			// Emergency diagnostic: Check if bulk meta path worked
+			if (!$card_data || empty($card_data['raw_data']['title'])) {
+				error_log('HRW Emergency: Bulk meta failed for ' . $hrw_restaurant->post_title . ', falling back to direct calls');
+				// Fallback: Use original method without bulk meta
+				$card_data = get_hrw_card_data($hrw_restaurant->ID, null);
+			}
+
+			if ($card_data) {
+				$custom_html = generate_hrw_card_html($card_data);
+				$place['meta']['custom_card_html'] = $custom_html;
+			} else {
+				error_log('HRW Emergency: Both bulk meta and fallback failed for ' . $hrw_restaurant->post_title);
+			}
+		} catch (Exception $e) {
+			error_log('HRW Emergency: Exception in card generation for ' . $hrw_restaurant->post_title . ': ' . $e->getMessage());
+			// Emergency fallback: Use original method
+			$card_data = get_hrw_card_data($hrw_restaurant->ID, null);
+			if ($card_data) {
+				$custom_html = generate_hrw_card_html($card_data);
+				$place['meta']['custom_card_html'] = $custom_html;
+			}
 		}
 
 		// Get custom taxonomies for top-level inclusion
