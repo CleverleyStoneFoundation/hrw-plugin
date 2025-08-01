@@ -779,15 +779,20 @@ class HRW_Data_Merger
 		error_log('HRW Transform: Step 2 COMPLETE - Valid coordinates for ' . $hrw_restaurant->post_title);
 
 		// Add coordinates to meta in VibeMap format
+		error_log('HRW Transform: Step 2.1 - Adding coordinates to meta for ' . $hrw_restaurant->post_title);
 		$place['meta']['vibemap_place_latitude'] = strval($latitude);
 		$place['meta']['vibemap_place_longitude'] = strval($longitude);
+		error_log('HRW Transform: Step 2.2 - Coordinates added to meta for ' . $hrw_restaurant->post_title);
 
 		// Get address - prefer bulk meta, fallback to ACF
+		error_log('HRW Transform: Step 2.3 - Getting address data for ' . $hrw_restaurant->post_title);
 		$full_address = isset($restaurant_meta['full_address']) && !empty($restaurant_meta['full_address'])
 			? $restaurant_meta['full_address']
 			: get_field('full_address', $hrw_restaurant->ID);
+		error_log('HRW Transform: Step 2.4 - Address retrieved for ' . $hrw_restaurant->post_title . ': ' . (empty($full_address) ? 'EMPTY' : 'HAS_DATA'));
 
 		if (!empty($full_address)) {
+			error_log('HRW Transform: Step 2.5 - Processing address data for ' . $hrw_restaurant->post_title);
 			// Process address data for VibeMap format
 			if (is_string($full_address) && strpos($full_address, 'a:') === 0) {
 				// Serialized data - unserialize it
@@ -805,20 +810,26 @@ class HRW_Data_Merger
 				$place['meta']['vibemap_place_address'] = $address_string;
 			}
 		}
+		error_log('HRW Transform: Step 2.6 - Address processing complete for ' . $hrw_restaurant->post_title);
 
 		// Get neighborhood - prefer bulk meta, fallback to ACF
+		error_log('HRW Transform: Step 2.7 - Getting neighborhood data for ' . $hrw_restaurant->post_title);
 		$neighborhood = isset($restaurant_meta['neighborhood']) && !empty($restaurant_meta['neighborhood'])
 			? $restaurant_meta['neighborhood']
 			: get_field('neighborhood', $hrw_restaurant->ID);
+		error_log('HRW Transform: Step 2.8 - Neighborhood retrieved for ' . $hrw_restaurant->post_title . ': ' . (empty($neighborhood) ? 'EMPTY' : 'HAS_DATA'));
 
 		if (!empty($neighborhood)) {
+			error_log('HRW Transform: Step 2.9 - Processing neighborhood for ' . $hrw_restaurant->post_title);
 			// Set neighborhood in meta and as taxonomy
 			$place['meta']['vibemap_place_neighborhood'] = $neighborhood;
+			error_log('HRW Transform: Step 2.10 - About to call sanitize_title for ' . $hrw_restaurant->post_title);
 			$place['neighborhood'] = [[
 				'id' => sanitize_title($neighborhood),
 				'name' => $neighborhood,
 				'slug' => sanitize_title($neighborhood)
 			]];
+			error_log('HRW Transform: Step 2.11 - Neighborhood processing complete for ' . $hrw_restaurant->post_title);
 		}
 
 		// EMERGENCY DIAGNOSTIC: Log step 3 completion
