@@ -260,6 +260,12 @@ div[class*="card-container"] {
 	z-index: 3;
 }
 
+/* HRW Fallback Logo Styling */
+.sing-card-image.hrw-fallback-logo {
+	object-fit: contain !important;
+	background-size: contain !important;
+}
+
 /* Reservation status - text black, icons green */
 .hrw-reservation-status {
 	font-size: 12px !important;
@@ -533,9 +539,5 @@ div[class*="error"] {
 		height: 100% !important;
 	}
 
-	/* HRW Fallback Logo Styling */
-	.sing-card-image.hrw-fallback-logo {
-		object-fit: contain !important;
-		background-size: contain !important;
-	}
+
 }

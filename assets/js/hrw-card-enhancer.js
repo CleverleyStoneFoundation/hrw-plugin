@@ -3,6 +3,8 @@
  * 
  * Enhances VibeMap cards with HRW restaurant card data
  * 
+ * Rob thinks this file is not needed anymore.
+ * 
  * @package HRW_Plugin
  * @since 1.0.0
  */
@@ -489,53 +491,6 @@
 		}, 1000);
 	});
 
-	// HRW Fallback Logo Detection
-	function detectHRWFallbackLogos() {
-		const cardImages = document.querySelectorAll('.sing-card-image');
-		const hrwLogoPattern = /HRW_2025-LOGO_1\.1\.svg/i;
-
-		cardImages.forEach(function (img) {
-			const backgroundImage = window.getComputedStyle(img).backgroundImage;
-
-			// Check if background image contains the HRW logo SVG
-			if (backgroundImage && hrwLogoPattern.test(backgroundImage)) {
-				img.classList.add('hrw-fallback-logo');
-			} else {
-				img.classList.remove('hrw-fallback-logo');
-			}
-		});
-	}
-
-	// Run detection on DOM ready and when images load
-	$(document).ready(function () {
-		detectHRWFallbackLogos();
-
-		// Re-run detection when images change (for dynamic content)
-		setTimeout(detectHRWFallbackLogos, 1000);
-
-		// Create observer for dynamically added content
-		if (window.MutationObserver) {
-			const observer = new MutationObserver(function (mutations) {
-				let shouldRecheck = false;
-				mutations.forEach(function (mutation) {
-					if (mutation.type === 'childList' ||
-						(mutation.type === 'attributes' && mutation.attributeName === 'style')) {
-						shouldRecheck = true;
-					}
-				});
-				if (shouldRecheck) {
-					detectHRWFallbackLogos();
-				}
-			});
-
-			observer.observe(document.body, {
-				childList: true,
-				subtree: true,
-				attributes: true,
-				attributeFilter: ['style']
-			});
-		}
-	});
 
 	// Make HRWCardEnhancer available globally
 	window.HRWCardEnhancer = HRWCardEnhancer;
