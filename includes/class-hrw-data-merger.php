@@ -86,20 +86,9 @@ class HRW_Data_Merger
 	 */
 	private static function process_restaurants_directly($hrw_restaurants, $request)
 	{
-		// EMERGENCY DIAGNOSTIC: Check if we have restaurants at all
-		error_log('HRW Emergency Diagnostic: process_restaurants_directly called with ' . count($hrw_restaurants) . ' restaurants');
-
 		if (empty($hrw_restaurants)) {
-			error_log('HRW Emergency: NO RESTAURANTS PROVIDED - this is the root cause of empty map!');
+			error_log('HRW Error: No restaurants provided for processing');
 			return self::build_final_response([], [], [], [], [], $request);
-		}
-
-		// EMERGENCY FALLBACK OPTION: Set to true to completely bypass bulk meta optimization
-		$emergency_bypass_bulk_meta = false; // FIXED: ACF serialization issue resolved, bulk meta re-enabled
-
-		if ($emergency_bypass_bulk_meta) {
-			error_log('HRW Emergency: Using complete fallback - bypassing all bulk meta optimization');
-			return self::process_restaurants_legacy_method($hrw_restaurants, $request);
 		}
 
 		$transformed_places = [];
@@ -108,52 +97,29 @@ class HRW_Data_Merger
 		$used_tags = [];
 		$used_custom_taxonomies = [];
 
-		// PHASE 2A+C: Safe Bulk Meta Loading + Query Profiling
-		// Step 1: Start query profiling 
+		// Start query profiling for performance monitoring
 		$query_start_time = microtime(true);
 		$query_count_start = self::get_query_count();
 
-		// Step 2: Bulk load meta data for all restaurants (eliminates N+1 queries)
+		// Bulk load meta data for all restaurants (eliminates N+1 queries)
 		$restaurant_ids = array_map(function ($restaurant) {
 			return $restaurant->ID;
 		}, $hrw_restaurants);
 		$meta_keys = HRW_Restaurant_Loader::get_transformation_meta_keys();
 
-		// EMERGENCY DIAGNOSTIC: Log bulk meta attempt
-		error_log('HRW Emergency: Attempting bulk meta load for ' . count($restaurant_ids) . ' restaurant IDs with ' . count($meta_keys) . ' meta keys');
-		error_log('HRW Emergency: Meta keys being loaded: ' . implode(', ', $meta_keys));
-
 		$bulk_meta = HRW_Restaurant_Loader::get_bulk_restaurant_meta($restaurant_ids, $meta_keys);
 
-		// EMERGENCY DIAGNOSTIC: Check bulk meta results
-		error_log('HRW Emergency: Bulk meta loaded for ' . count($bulk_meta) . ' restaurants');
-		if (count($bulk_meta) < count($restaurant_ids)) {
-			error_log('HRW Emergency: WARNING - Bulk meta count mismatch! Expected: ' . count($restaurant_ids) . ', Got: ' . count($bulk_meta));
-		}
-
-		// Step 3: Profile bulk meta loading performance
+		// Profile bulk meta loading performance
 		$bulk_meta_time = microtime(true) - $query_start_time;
 		$bulk_meta_queries = self::get_query_count() - $query_count_start;
-
-		error_log('HRW Merger: Phase 2A - Safe bulk meta loading for ' . count($hrw_restaurants) . ' restaurants');
-		error_log('HRW Merger: Bulk loaded meta for ' . count($bulk_meta) . ' restaurants');
-		error_log('HRW Merger: Bulk meta loading: ' . round($bulk_meta_time * 1000, 2) . 'ms, ' . $bulk_meta_queries . ' queries');
-
-		// Production-ready bulk meta optimization active
-		error_log('HRW Merger: Bulk meta optimization - loaded ' . count($bulk_meta) . ' restaurants with ' . count($meta_keys) . ' meta fields each');
 
 		foreach ($hrw_restaurants as $index => $hrw_restaurant) {
 			// Monitor memory usage and break if getting too high
 			$memory_info = HRW_Restaurant_Loader::get_memory_info();
 
 			if ($memory_info['is_high']) {
-				error_log('HRW Merger: Memory usage too high (' . $memory_info['usage_formatted'] . ' of ' . $memory_info['limit'] . '), stopping at restaurant ' . ($index + 1));
+				error_log('HRW Memory: High usage (' . $memory_info['usage_formatted'] . '), stopping at restaurant ' . ($index + 1));
 				break;
-			}
-
-			// Minimal logging for first restaurant only
-			if ($index === 0) {
-				error_log('HRW Merger: Processing first restaurant: ' . $hrw_restaurant->post_title . ' (Memory: ' . $memory_info['usage_formatted'] . ')');
 			}
 
 			// Get pre-loaded meta for this restaurant
@@ -185,19 +151,15 @@ class HRW_Data_Merger
 			}
 		}
 
-		// Final performance analysis
+		// Performance monitoring (only log if slow or memory issues)
 		$total_time = microtime(true) - $query_start_time;
-		$total_queries = self::get_query_count() - $query_count_start;
-		$transformation_time = $total_time - $bulk_meta_time;
 
-		error_log('HRW Merger: PHASE 2A PERFORMANCE REPORT:');
-		error_log('HRW Merger: • Total processing time: ' . round($total_time * 1000, 2) . 'ms');
-		error_log('HRW Merger: • Bulk meta loading: ' . round($bulk_meta_time * 1000, 2) . 'ms (' . round(($bulk_meta_time / $total_time) * 100, 1) . '%)');
-		error_log('HRW Merger: • Transformation: ' . round($transformation_time * 1000, 2) . 'ms (' . round(($transformation_time / $total_time) * 100, 1) . '%)');
-		error_log('HRW Merger: • Total database queries: ' . $total_queries);
-		error_log('HRW Merger: • Bulk meta queries: ' . $bulk_meta_queries);
-		error_log('HRW Merger: • Transformation queries: ' . ($total_queries - $bulk_meta_queries));
-		error_log('HRW Merger: • Places successfully transformed: ' . count($transformed_places) . '/' . count($hrw_restaurants));
+		if ($total_time > 5.0 || count($transformed_places) < count($hrw_restaurants) * 0.9) {
+			$total_queries = self::get_query_count() - $query_count_start;
+			$transformation_time = $total_time - $bulk_meta_time;
+
+			error_log('HRW Performance: Total ' . round($total_time * 1000, 2) . 'ms, ' . $total_queries . ' queries, ' . count($transformed_places) . '/' . count($hrw_restaurants) . ' restaurants');
+		}
 
 		// Build final response
 		return self::build_final_response($transformed_places, $used_categories, $used_vibes, $used_tags, $used_custom_taxonomies, $request);
@@ -711,9 +673,6 @@ class HRW_Data_Merger
 	 */
 	private static function transform_hrw_restaurant_to_place_safe($hrw_restaurant, $restaurant_meta, &$used_custom_taxonomies)
 	{
-		// EMERGENCY DIAGNOSTIC: Log entry to transformation function
-		error_log('HRW Transform: ENTERING transformation for ' . $hrw_restaurant->post_title . ' (ID: ' . $hrw_restaurant->ID . ')');
-
 		// Start with basic place structure matching working legacy format
 		$place = [
 			'id' => $hrw_restaurant->ID, // Integer ID like legacy
@@ -751,9 +710,6 @@ class HRW_Data_Merger
 			$vibemap_id = 'hrw_' . $hrw_restaurant->ID;
 		}
 
-		// EMERGENCY DIAGNOSTIC: Log successful vibemap_id resolution
-		error_log('HRW Transform: Step 1 COMPLETE - vibemap_id resolved: ' . $vibemap_id);
-
 		// Set vibemap_place_id in meta
 		$place['meta']['vibemap_place_id'] = $vibemap_id;
 
@@ -766,33 +722,21 @@ class HRW_Data_Merger
 			? (float) $restaurant_meta['longitude']
 			: (float) get_field('longitude', $hrw_restaurant->ID);
 
-		// EMERGENCY DIAGNOSTIC: Log coordinates before validation
-		error_log('HRW Transform: Step 2 - Coordinates for ' . $hrw_restaurant->post_title . ': lat=' . var_export($latitude, true) . ', lng=' . var_export($longitude, true));
-
 		// Validate coordinates
 		if ($latitude === null || $longitude === null || $latitude === 0 || $longitude === 0) {
-			error_log('HRW Transform: Step 2 FAILED - Invalid coordinates for ' . $hrw_restaurant->post_title . ', returning null');
 			return null;
 		}
 
-		// EMERGENCY DIAGNOSTIC: Log successful coordinates validation
-		error_log('HRW Transform: Step 2 COMPLETE - Valid coordinates for ' . $hrw_restaurant->post_title);
-
 		// Add coordinates to meta in VibeMap format
-		error_log('HRW Transform: Step 2.1 - Adding coordinates to meta for ' . $hrw_restaurant->post_title);
 		$place['meta']['vibemap_place_latitude'] = strval($latitude);
 		$place['meta']['vibemap_place_longitude'] = strval($longitude);
-		error_log('HRW Transform: Step 2.2 - Coordinates added to meta for ' . $hrw_restaurant->post_title);
 
 		// Get address - prefer bulk meta, fallback to ACF
-		error_log('HRW Transform: Step 2.3 - Getting address data for ' . $hrw_restaurant->post_title);
 		$full_address = isset($restaurant_meta['full_address']) && !empty($restaurant_meta['full_address'])
 			? $restaurant_meta['full_address']
 			: get_field('full_address', $hrw_restaurant->ID);
-		error_log('HRW Transform: Step 2.4 - Address retrieved for ' . $hrw_restaurant->post_title . ': ' . (empty($full_address) ? 'EMPTY' : 'HAS_DATA'));
 
 		if (!empty($full_address)) {
-			error_log('HRW Transform: Step 2.5 - Processing address data for ' . $hrw_restaurant->post_title);
 			// Process address data for VibeMap format
 			if (is_string($full_address) && strpos($full_address, 'a:') === 0) {
 				// Serialized data - unserialize it
@@ -810,27 +754,20 @@ class HRW_Data_Merger
 				$place['meta']['vibemap_place_address'] = $address_string;
 			}
 		}
-		error_log('HRW Transform: Step 2.6 - Address processing complete for ' . $hrw_restaurant->post_title);
 
 		// Get neighborhood - prefer bulk meta, fallback to ACF
-		error_log('HRW Transform: Step 2.7 - Getting neighborhood data for ' . $hrw_restaurant->post_title);
 		$neighborhood = isset($restaurant_meta['neighborhood']) && !empty($restaurant_meta['neighborhood'])
 			? $restaurant_meta['neighborhood']
 			: get_field('neighborhood', $hrw_restaurant->ID);
-		error_log('HRW Transform: Step 2.8 - Neighborhood retrieved for ' . $hrw_restaurant->post_title . ': ' . (empty($neighborhood) ? 'EMPTY' : 'HAS_DATA'));
 
 		if (!empty($neighborhood)) {
-			error_log('HRW Transform: Step 2.9 - Processing neighborhood for ' . $hrw_restaurant->post_title);
-
-			// CRITICAL FIX: Handle array neighborhood data
+			// Handle array neighborhood data
 			$neighborhood_string = is_array($neighborhood) ? $neighborhood[0] : $neighborhood;
-			error_log('HRW Transform: Step 2.9.1 - Extracted neighborhood string: ' . var_export($neighborhood_string, true));
 
 			// Set neighborhood in meta and as taxonomy
 			$place['meta']['vibemap_place_neighborhood'] = $neighborhood_string;
-			error_log('HRW Transform: Step 2.10 - About to call sanitize_title for ' . $hrw_restaurant->post_title . ' with value: ' . var_export($neighborhood_string, true));
 
-			// CRITICAL FIX: Use safe sanitize_title with fallback
+			// Safe sanitize_title with fallback
 			if (function_exists('sanitize_title')) {
 				$neighborhood_slug = sanitize_title($neighborhood_string);
 			} else {
@@ -840,18 +777,12 @@ class HRW_Data_Merger
 				$neighborhood_slug = trim($neighborhood_slug, '-');
 			}
 
-			error_log('HRW Transform: Step 2.10.1 - Sanitized neighborhood slug: ' . $neighborhood_slug);
-
 			$place['neighborhood'] = [[
 				'id' => $neighborhood_slug,
 				'name' => $neighborhood_string,
 				'slug' => $neighborhood_slug
 			]];
-			error_log('HRW Transform: Step 2.11 - Neighborhood processing complete for ' . $hrw_restaurant->post_title);
 		}
-
-		// EMERGENCY DIAGNOSTIC: Log step 3 completion
-		error_log('HRW Transform: Step 3 COMPLETE - Address/neighborhood processing for ' . $hrw_restaurant->post_title);
 
 		// Get vibes - prefer bulk meta, fallback to ACF
 		$vibes_from_vibemap = isset($restaurant_meta['vibes_from_vibemap']) && !empty($restaurant_meta['vibes_from_vibemap'])
@@ -888,20 +819,10 @@ class HRW_Data_Merger
 			}
 		}
 
-		// EMERGENCY DIAGNOSTIC: Log step 4 completion
-		error_log('HRW Transform: Step 4 COMPLETE - Vibes processing for ' . $hrw_restaurant->post_title);
-
 		// Get featured image using safe method
-		error_log('HRW Transform: Step 5 STARTING - Featured image processing for ' . $hrw_restaurant->post_title);
 		$featured_image_url = self::get_featured_image_safe($hrw_restaurant, $restaurant_meta);
-		error_log('HRW Transform: Step 5 COMPLETE - Featured image result: ' . ($featured_image_url ?: 'none'));
 
-		// DEBUG: Log image processing for restaurants (focusing on ones that might have images)
-		static $image_debug_count = 0;
-		// Images now use direct ACF calls, so check if this restaurant has an image
-		$has_any_image_data = !empty($featured_image_url);
-
-		// Simplified debug logging
+		// Simplified image debugging (only for first 3 with images)
 		static $simple_debug_count = 0;
 		if ($simple_debug_count < 3 && !empty($featured_image_url)) {
 			error_log('HRW Image: Restaurant "' . $hrw_restaurant->post_title . '" has image: ' . substr($featured_image_url, -50));
@@ -922,20 +843,26 @@ class HRW_Data_Merger
 					$child_theme_url . '/assets/images/hrw-placeholder.jpg',
 					$child_theme_url . '/assets/images/restaurant-placeholder.jpg',
 					$theme_url . '/assets/images/hrw-placeholder.jpg',
-					$theme_url . '/assets/images/restaurant-placeholder.jpg'
+					$theme_url . '/assets/images/restaurant-placeholder.jpg',
+					'https://via.placeholder.com/400x300?text=Restaurant+Image'
 				];
 
-				// For now, use the first one as default (you can replace with actual image)
-				$fallback_image = $possible_placeholders[0];
+				foreach ($possible_placeholders as $placeholder) {
+					if (filter_var($placeholder, FILTER_VALIDATE_URL)) {
+						$fallback_image = $placeholder;
+						break;
+					}
+				}
 			}
+
 			if (!empty($fallback_image)) {
 				$place['featured_image'] = $fallback_image;
 			}
 		}
 
-		// Add menu year and status for filtering (keep these for internal use)
-		$meta_fields = ['_menu_year', '_menu_status'];
-		foreach ($meta_fields as $meta_key) {
+		// Get additional meta fields
+		$additional_meta_keys = ['restaurant_title', 'cuisine_types', 'neighborhood', 'vibes_from_vibemap'];
+		foreach ($additional_meta_keys as $meta_key) {
 			$meta_value = isset($restaurant_meta[$meta_key]) && !empty($restaurant_meta[$meta_key])
 				? $restaurant_meta[$meta_key]
 				: get_post_meta($hrw_restaurant->ID, $meta_key, true);
@@ -945,23 +872,16 @@ class HRW_Data_Merger
 			}
 		}
 
-		// EMERGENCY DIAGNOSTIC: Log step 6 completion
-		error_log('HRW Transform: Step 6 COMPLETE - Meta fields processing for ' . $hrw_restaurant->post_title);
-
 		// Apply custom taxonomies using the working method (modifies by reference)
-		error_log('HRW Transform: Step 7 STARTING - Custom taxonomies for ' . $hrw_restaurant->post_title);
 		self::add_custom_taxonomies($place, $hrw_restaurant, $used_custom_taxonomies);
-		error_log('HRW Transform: Step 7 COMPLETE - Custom taxonomies for ' . $hrw_restaurant->post_title);
 
-		// Generate and add custom card HTML (EMERGENCY DIAGNOSTIC + FALLBACK)
-		error_log('HRW Transform: Step 8 STARTING - Card generation for ' . $hrw_restaurant->post_title);
+		// Generate and add custom card HTML
 		try {
 			// First attempt: Use optimized path with bulk meta
 			$card_data = get_hrw_card_data($hrw_restaurant->ID, $restaurant_meta);
 
 			// Emergency diagnostic: Check if bulk meta path worked
 			if (!$card_data || empty($card_data['raw_data']['title'])) {
-				error_log('HRW Emergency: Bulk meta failed for ' . $hrw_restaurant->post_title . ', falling back to direct calls');
 				// Fallback: Use original method without bulk meta
 				$card_data = get_hrw_card_data($hrw_restaurant->ID, null);
 			}
@@ -969,8 +889,6 @@ class HRW_Data_Merger
 			if ($card_data) {
 				$custom_html = generate_hrw_card_html($card_data);
 				$place['meta']['custom_card_html'] = $custom_html;
-			} else {
-				error_log('HRW Emergency: Both bulk meta and fallback failed for ' . $hrw_restaurant->post_title);
 			}
 		} catch (Exception $e) {
 			error_log('HRW Emergency: Exception in card generation for ' . $hrw_restaurant->post_title . ': ' . $e->getMessage());
@@ -982,11 +900,7 @@ class HRW_Data_Merger
 			}
 		}
 
-		// EMERGENCY DIAGNOSTIC: Log step 8 completion
-		error_log('HRW Transform: Step 8 COMPLETE - Card generation for ' . $hrw_restaurant->post_title);
-
 		// Get custom taxonomies for top-level inclusion
-		error_log('HRW Transform: Step 9 STARTING - Final custom taxonomies for ' . $hrw_restaurant->post_title);
 		$custom_taxonomies = vibemap_hrw_get_place_custom_taxonomies($hrw_restaurant->ID);
 
 		// Build final transformed structure like legacy (with custom taxonomies at top level)
@@ -1007,9 +921,6 @@ class HRW_Data_Merger
 		foreach ($custom_taxonomies as $tax_slug => $terms) {
 			$transformed_place[$tax_slug] = $terms;
 		}
-
-		// EMERGENCY DIAGNOSTIC: Log successful completion
-		error_log('HRW Transform: SUCCESSFUL COMPLETION for ' . $hrw_restaurant->post_title . ' (ID: ' . $hrw_restaurant->ID . ')');
 
 		return $transformed_place;
 	}
