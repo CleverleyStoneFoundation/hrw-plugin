@@ -942,14 +942,25 @@ function vibemap_hrw_get_place_custom_taxonomies($post_id)
     $taxonomy_fields = get_option('vibemap_hrw_custom_taxonomies', '');
     $fields_array = array_map('trim', explode(',', $taxonomy_fields));
 
+    // DEBUG: Log what fields we're processing
+    error_log('HRW Custom Taxonomies DEBUG: Raw option value: "' . $taxonomy_fields . '"');
+    error_log('HRW Custom Taxonomies DEBUG: Fields array: ' . json_encode($fields_array));
+    error_log('HRW Custom Taxonomies DEBUG: Processing ' . count($fields_array) . ' fields for restaurant ID ' . $post_id);
+
     // Process each configured field
     foreach ($fields_array as $field_name) {
         if (empty($field_name)) {
+            error_log('HRW Custom Taxonomies DEBUG: Skipping empty field name');
             continue;
         }
 
+        error_log('HRW Custom Taxonomies DEBUG: Processing field "' . $field_name . '"');
+
         // Get the field value using ACF
         $field_value = get_field($field_name, $post_id);
+
+        error_log('HRW Custom Taxonomies DEBUG: Field "' . $field_name . '" value: ' . json_encode($field_value));
+        error_log('HRW Custom Taxonomies DEBUG: Field "' . $field_name . '" is_array: ' . (is_array($field_value) ? 'YES' : 'NO'));
 
         if (!empty($field_value) && is_array($field_value)) {
             $formatted_terms = [];
@@ -980,11 +991,16 @@ function vibemap_hrw_get_place_custom_taxonomies($post_id)
             }
 
             if (!empty($formatted_terms)) {
-                // Use the field name exactly as specified in settings
+                error_log('HRW Custom Taxonomies DEBUG: Added ' . count($formatted_terms) . ' terms for field "' . $field_name . '"');
                 $place_taxonomies[$field_name] = $formatted_terms;
             }
+        } else {
+            error_log('HRW Custom Taxonomies DEBUG: Field "' . $field_name . '" - no valid array data found');
         }
     }
+
+    // DEBUG: Log final results
+    error_log('HRW Custom Taxonomies DEBUG: Final taxonomies for post ' . $post_id . ': ' . json_encode(array_keys($place_taxonomies)));
 
     // Also check for actual WordPress taxonomies
     $taxonomies = get_object_taxonomies('hrw_restaurants');
