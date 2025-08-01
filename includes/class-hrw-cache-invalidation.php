@@ -58,10 +58,16 @@ class HRW_Cache_Invalidation
 			return;
 		}
 
+		// Only clear cache if this restaurant should appear in API results
+		if (!self::should_trigger_cache_invalidation($post_id, $post->post_status)) {
+			return;
+		}
+
 		self::clear_api_cache('restaurant_saved', [
 			'post_id' => $post_id,
 			'post_title' => $post->post_title,
-			'post_status' => $post->post_status
+			'post_status' => $post->post_status,
+			'menu_status' => get_post_meta($post_id, '_menu_status', true)
 		]);
 	}
 
@@ -78,22 +84,16 @@ class HRW_Cache_Invalidation
 			return;
 		}
 
-		// Check if important fields changed
-		$important_fields = [
-			'_menu_status',
-			'_menu_year',
-			'neighborhood',
-			'cuisine_types',
-			'latitude',
-			'longitude',
-			'vibemap_id'
-		];
+		// Only clear cache if this restaurant should appear in API results
+		if (!self::should_trigger_cache_invalidation($post_id, $post->post_status)) {
+			return;
+		}
 
-		// Clear cache for any ACF save on restaurant posts
-		// (More efficient than checking each field individually)
 		self::clear_api_cache('acf_saved', [
 			'post_id' => $post_id,
-			'trigger' => 'acf_field_update'
+			'trigger' => 'acf_field_update',
+			'post_status' => $post->post_status,
+			'menu_status' => get_post_meta($post_id, '_menu_status', true)
 		]);
 	}
 
@@ -110,13 +110,21 @@ class HRW_Cache_Invalidation
 			return;
 		}
 
-		// Clear cache for any status change (publish, draft, trash, etc.)
-		self::clear_api_cache('status_changed', [
-			'post_id' => $post->ID,
-			'old_status' => $old_status,
-			'new_status' => $new_status,
-			'post_title' => $post->post_title
-		]);
+		// Clear cache if restaurant was previously visible or is now becoming visible
+		$was_visible = ($old_status === 'publish' && self::should_trigger_cache_invalidation($post->ID, $old_status));
+		$is_now_visible = self::should_trigger_cache_invalidation($post->ID, $new_status);
+
+		if ($was_visible || $is_now_visible) {
+			self::clear_api_cache('status_changed', [
+				'post_id' => $post->ID,
+				'old_status' => $old_status,
+				'new_status' => $new_status,
+				'post_title' => $post->post_title,
+				'menu_status' => get_post_meta($post->ID, '_menu_status', true),
+				'was_visible' => $was_visible,
+				'is_now_visible' => $is_now_visible
+			]);
+		}
 	}
 
 	/**
@@ -243,5 +251,39 @@ class HRW_Cache_Invalidation
 			echo 'Restaurant changes will appear immediately in API responses.';
 			echo '</p></div>';
 		});
+	}
+
+	/**
+	 * Check if a restaurant should trigger cache invalidation
+	 * 
+	 * Only clear cache for restaurants that appear in API results:
+	 * - Post status is 'publish'
+	 * - _menu_status is '4' (approved)
+	 * - _menu_year is '2025' (current year)
+	 * 
+	 * @param int $post_id Post ID
+	 * @param string $post_status Post status
+	 * @return bool True if should trigger cache invalidation
+	 */
+	private static function should_trigger_cache_invalidation($post_id, $post_status)
+	{
+		// Must be published
+		if ($post_status !== 'publish') {
+			return false;
+		}
+
+		// Must have approved menu status
+		$menu_status = get_post_meta($post_id, '_menu_status', true);
+		if ($menu_status !== '4') {
+			return false;
+		}
+
+		// Additional check for menu year (matches API filter)
+		$menu_year = get_post_meta($post_id, '_menu_year', true);
+		if ($menu_year !== '2025') {
+			return false;
+		}
+
+		return true;
 	}
 }
