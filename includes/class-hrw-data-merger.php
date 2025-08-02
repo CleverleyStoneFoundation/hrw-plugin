@@ -468,6 +468,14 @@ class HRW_Data_Merger
 		$hrw_taxonomies = [];
 		foreach ($used_custom_taxonomies as $tax_slug => $terms) {
 			$all_terms = array_values($terms);
+
+			// Sort terms alphabetically by name for better UX
+			if (!empty($all_terms)) {
+				usort($all_terms, function ($a, $b) {
+					return strcasecmp($a['name'], $b['name']);
+				});
+			}
+
 			if (!empty($all_terms)) {
 				// Get taxonomy configuration
 				$config = vibemap_hrw_get_taxonomy_config($tax_slug);
