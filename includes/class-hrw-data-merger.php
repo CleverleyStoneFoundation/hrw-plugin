@@ -492,10 +492,18 @@ class HRW_Data_Merger
 
 		// TIMING: Build response structure
 		$structure_start = microtime(true);
+
+		// Map vibes_from_vibemap to top-level vibes array for frontend compatibility
+		$vibes_array = [];
+		if (isset($hrw_taxonomies['vibes_from_vibemap'])) {
+			$vibes_array = $hrw_taxonomies['vibes_from_vibemap']['terms'];
+			error_log('HRW Merger: Mapped ' . count($vibes_array) . ' vibes from vibes_from_vibemap to top-level vibes array');
+		}
+
 		$response = [
 			'places'     => $merged_places,
 			'categories' => [], // Empty for HRW-only response
-			'vibes'      => [], // Empty for HRW-only response
+			'vibes'      => $vibes_array, // Map from vibes_from_vibemap for frontend compatibility
 			'tags'       => [], // Empty for HRW-only response
 			'taxonomies' => $hrw_taxonomies // HRW custom taxonomies
 		];
