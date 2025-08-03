@@ -141,6 +141,11 @@ function vibemap_hrw_should_load_vibemap_assets()
 {
     global $post;
 
+    // NEVER load on HRW restaurant pages (they don't need ViberMap frontend assets)
+    if (is_singular('hrw_restaurants')) {
+        return false;
+    }
+
     // ALWAYS load on ViberMap post types
     if (is_singular(['vibemap_place', 'vibemap_event'])) {
         return true;
