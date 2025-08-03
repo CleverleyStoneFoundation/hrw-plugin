@@ -49,7 +49,7 @@ function vibemap_hrw_init()
     $bootstrap_file = plugin_dir_path(__FILE__) . 'includes/bootstrap.php';
     if (file_exists($bootstrap_file)) {
         require_once $bootstrap_file;
-        error_log('HRW: Loaded optimized bootstrap system');
+        // error_log('HRW: Loaded optimized bootstrap system');
     } else {
         error_log('HRW: WARNING - Bootstrap file not found, falling back to legacy system');
         // Fall back to the legacy system if bootstrap is missing
@@ -73,6 +73,140 @@ function vibemap_hrw_init()
     // Add custom CSS to pages with VibeMap blocks
     add_action('wp_head', 'vibemap_hrw_output_custom_css');
     add_action('admin_head', 'vibemap_hrw_output_custom_css');
+
+    // EMERGENCY HOTFIX: Add conditional asset loading to prevent 30MB+ bundles on every page
+    vibemap_hrw_conditional_asset_loading_hotfix();
+}
+
+/**
+ * Emergency hotfix: Conditionally dequeue heavy ViberMap assets
+ * This prevents the 30MB+ bundles from loading on every page
+ */
+function vibemap_hrw_conditional_asset_loading_hotfix()
+{
+    // Hook into wp_enqueue_scripts with high priority to dequeue after ViberMap enqueues
+    add_action('wp_enqueue_scripts', 'vibemap_hrw_dequeue_unnecessary_assets', 999);
+}
+
+/**
+ * Dequeue ViberMap assets on pages that don't need them
+ */
+function vibemap_hrw_dequeue_unnecessary_assets()
+{
+    // Use enhanced logic to determine if ViberMap assets should load
+    if (!vibemap_hrw_should_load_vibemap_assets()) {
+
+        // Dequeue heavy ViberMap scripts
+        wp_dequeue_script('vibemap-templates');
+        wp_dequeue_script('toastify-js');
+        wp_dequeue_script('vibemap-modal');
+
+        // Dequeue ViberMap styles  
+        wp_dequeue_style('toastify-css');
+        wp_dequeue_style('vibemap-modal');
+
+        // Dequeue bookmarks functionality on non-relevant pages
+        wp_dequeue_script('vibemap-bookmarks-js');
+        wp_dequeue_script('vibemap-bookmarks-mini-cart-js');
+        wp_dequeue_style('vibemap-bookmarks-mini-cart-css');
+
+        // Dequeue block-specific assets (these are the 10MB+ files)
+        $vibemap_blocks = [
+            'vibemap-similar-items',
+            'vibemap-card-carousel', 
+            'vibemap-native-places',
+            'vibemap-bookmarks',
+            'vibemap-meta-info',
+            'vibemap-hero-image',
+            'vibemap-venue-events',
+            'vibemap-shared-list-content',
+            'vibemap-single-card',
+            'vibemap-native-events',
+            'vibemap-recent-posts-showcase'  // MISSING BLOCK ADDED
+        ];
+
+        foreach ($vibemap_blocks as $block) {
+            wp_dequeue_script($block . '-frontend');
+            wp_dequeue_script($block . '-script');
+            wp_dequeue_style($block . '-style');
+            wp_dequeue_style($block . '-frontend-style');
+        }
+
+        // ADDITIONAL: Dequeue numbered folder versions (e.g., 04-vibemap-native-places-frontend)
+        $numbered_vibemap_blocks = [
+            '04-vibemap-native-places',
+            '06-vibemap-card-carousel',
+            '07-vibemap-bookmarks', 
+            '09-vibemap-recent-posts-showcase'
+        ];
+        
+        foreach ($numbered_vibemap_blocks as $block) {
+            wp_dequeue_script($block . '-frontend');
+            wp_dequeue_script($block . '-script');
+            wp_dequeue_style($block . '-style');
+            wp_dequeue_style($block . '-frontend-style');
+        }
+    }
+}
+
+/**
+ * Enhanced logic to determine if ViberMap assets should load
+ * Extends the existing vibemap_hrw_should_load_css() logic
+ */
+function vibemap_hrw_should_load_vibemap_assets()
+{
+    global $post;
+
+    // NEVER load on HRW restaurant pages (they don't need ViberMap frontend assets)
+    if (is_singular('hrw_restaurants')) {
+        return false;
+    }
+
+    // ALWAYS load on ViberMap post types
+    if (is_singular(['vibemap_place', 'vibemap_event'])) {
+        return true;
+    }
+
+    // ALWAYS load in admin (preserves HRW connector functionality)
+    if (is_admin()) {
+        return true;
+    }
+
+    // Load if page contains ViberMap blocks
+    if ($post && has_blocks($post->post_content)) {
+        if (strpos($post->post_content, 'vibemap') !== false) {
+            return true;
+        }
+    }
+
+    // Load if page contains ViberMap shortcodes
+    if ($post && $post->post_content) {
+        if (strpos($post->post_content, '[vibemap') !== false) {
+            return true;
+        }
+    }
+
+    // Load on shared list pages
+    if (get_query_var('shared_list')) {
+        return true;
+    }
+
+    // Use existing HRW CSS loading logic as fallback
+    if (function_exists('vibemap_hrw_should_load_css') && vibemap_hrw_should_load_css()) {
+        return true;
+    }
+
+    // Load on specific restaurant-related pages
+    if (is_page(['restaurants', 'places', 'events', 'bookmarks', 'favorites'])) {
+        return true;
+    }
+
+    // Houston Restaurant Week specific pages
+    if (is_page(['restaurant-week', 'participating-restaurants', 'hrw-restaurants'])) {
+        return true;
+    }
+
+    return false;
 }
 
 /**
@@ -666,7 +800,17 @@ function vibemap_hrw_merge_restaurant_data($original_data, $request)
             // Use fallback image from settings
             if (empty($featured_image_url)) {
                 error_log('HRW: No featured image found, trying fallback image');
-                $featured_image_url = get_option('vibemap_hrw_fallback_image', '');
+                $fallback_content = get_option('vibemap_hrw_fallback_image', '');
+                if (!empty($fallback_content)) {
+                    // Check if it's SVG content vs URL
+                    if (strpos(trim($fallback_content), '<svg') === 0) {
+                        // It's embedded SVG - create data URI
+                        $featured_image_url = 'data:image/svg+xml;base64,' . base64_encode($fallback_content);
+                    } else {
+                        // It's a URL (backward compatibility)
+                        $featured_image_url = $fallback_content;
+                    }
+                }
             }
 
             $merged_place['featured_image'] = $featured_image_url;
@@ -1111,9 +1255,9 @@ function vibemap_hrw_register_settings()
     // Register fallback image setting
     register_setting('vibemap_hrw_settings_group', 'vibemap_hrw_fallback_image', [
         'type' => 'string',
-        'description' => 'Fallback image URL for restaurants without gallery images',
+        'description' => 'Fallback SVG content or image URL for restaurants without gallery images',
         'default' => '',
-        'sanitize_callback' => 'esc_url_raw'
+        'sanitize_callback' => 'vibemap_hrw_sanitize_css'
     ]);
 
     add_settings_section(
@@ -1156,7 +1300,7 @@ function vibemap_hrw_register_settings()
 
     add_settings_field(
         'vibemap_hrw_fallback_image',
-        __('Fallback Image URL', 'vibemap-hrw-helper'),
+        __('Fallback Image SVG/URL', 'vibemap-hrw-helper'),
         'vibemap_hrw_fallback_image_callback',
         'vibemap-hrw-settings',
         'vibemap_hrw_styling_section'
@@ -1440,7 +1584,23 @@ function vibemap_hrw_custom_css_callback()
  */
 function vibemap_hrw_sanitize_css($input)
 {
-    // Basic CSS sanitization - remove script tags and dangerous content
+    // For SVG content, allow SVG tags
+    $allowed_svg_tags = [
+        'svg' => ['viewBox' => [], 'xmlns' => [], 'width' => [], 'height' => [], 'id' => [], 'data-name' => []],
+        'g' => ['id' => [], 'data-name' => []],
+        'path' => ['d' => [], 'style' => [], 'fill' => []],
+        'polyline' => ['points' => [], 'style' => [], 'fill' => []],
+        'polygon' => ['points' => [], 'style' => [], 'fill' => []],
+        'circle' => ['cx' => [], 'cy' => [], 'r' => [], 'style' => [], 'fill' => []],
+        'rect' => ['x' => [], 'y' => [], 'width' => [], 'height' => [], 'style' => [], 'fill' => []]
+    ];
+
+    // Check if content looks like SVG
+    if (strpos(trim($input), '<svg') === 0) {
+        return wp_kses($input, $allowed_svg_tags);
+    }
+
+    // Fallback for CSS
     $input = wp_strip_all_tags($input);
     $input = str_replace(['<script', '</script>', 'javascript:', 'expression(', 'eval('], '', $input);
     return $input;
@@ -1452,9 +1612,10 @@ function vibemap_hrw_sanitize_css($input)
 function vibemap_hrw_fallback_image_callback()
 {
     $value = get_option('vibemap_hrw_fallback_image', '');
-    echo '<input type="url" id="vibemap_hrw_fallback_image" name="vibemap_hrw_fallback_image" value="' . esc_attr($value) . '" class="large-text" />';
-    echo '<p class="description">Enter the URL of an image to use as a fallback when restaurants don\'t have images in the "photos_of_hrw_menu_items" gallery field.<br>';
-    echo 'Example: <code>https://example.com/default-restaurant-image.jpg</code></p>';
+    echo '<textarea id="vibemap_hrw_fallback_image" name="vibemap_hrw_fallback_image" rows="15" cols="80" class="large-text code">' . esc_textarea($value) . '</textarea>';
+    echo '<p class="description">Enter the SVG code directly (including &lt;svg&gt; tags) to use as a fallback when restaurants don\'t have images.<br>';
+    echo 'Current: External SVG file loading | New: Embedded SVG code | Benefits: Eliminates CDN requests<br>';
+    echo 'Example: <code>&lt;svg viewBox="0 0 1500 2002.89"&gt;...&lt;/svg&gt;</code></p>';
 }
 
 /**
