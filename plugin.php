@@ -113,7 +113,7 @@ function vibemap_hrw_dequeue_unnecessary_assets()
         // Dequeue block-specific assets (these are the 10MB+ files)
         $vibemap_blocks = [
             'vibemap-similar-items',
-            'vibemap-card-carousel',
+            'vibemap-card-carousel', 
             'vibemap-native-places',
             'vibemap-bookmarks',
             'vibemap-meta-info',
@@ -121,10 +121,26 @@ function vibemap_hrw_dequeue_unnecessary_assets()
             'vibemap-venue-events',
             'vibemap-shared-list-content',
             'vibemap-single-card',
-            'vibemap-native-events'
+            'vibemap-native-events',
+            'vibemap-recent-posts-showcase'  // MISSING BLOCK ADDED
         ];
 
         foreach ($vibemap_blocks as $block) {
+            wp_dequeue_script($block . '-frontend');
+            wp_dequeue_script($block . '-script');
+            wp_dequeue_style($block . '-style');
+            wp_dequeue_style($block . '-frontend-style');
+        }
+
+        // ADDITIONAL: Dequeue numbered folder versions (e.g., 04-vibemap-native-places-frontend)
+        $numbered_vibemap_blocks = [
+            '04-vibemap-native-places',
+            '06-vibemap-card-carousel',
+            '07-vibemap-bookmarks', 
+            '09-vibemap-recent-posts-showcase'
+        ];
+        
+        foreach ($numbered_vibemap_blocks as $block) {
             wp_dequeue_script($block . '-frontend');
             wp_dequeue_script($block . '-script');
             wp_dequeue_style($block . '-style');
