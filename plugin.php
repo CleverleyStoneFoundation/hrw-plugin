@@ -132,19 +132,34 @@ function vibemap_hrw_dequeue_unnecessary_assets()
             wp_dequeue_style($block . '-frontend-style');
         }
 
-        // ADDITIONAL: Dequeue numbered folder versions (e.g., 04-vibemap-native-places-frontend)
-        $numbered_vibemap_blocks = [
-            '04-vibemap-native-places',
-            '06-vibemap-card-carousel',
-            '07-vibemap-bookmarks', 
-            '09-vibemap-recent-posts-showcase'
+        // CRITICAL: Dequeue using ACTUAL script handles (found from id attributes in HTML)
+        $actual_vibemap_script_handles = [
+            'vibemap-places-map-native-script-js',  // Actual handle for 04-vibemap-native-places
+            // TODO: Add more actual handles as we discover them from browser inspection
         ];
         
-        foreach ($numbered_vibemap_blocks as $block) {
-            wp_dequeue_script($block . '-frontend');
-            wp_dequeue_script($block . '-script');
-            wp_dequeue_style($block . '-style');
-            wp_dequeue_style($block . '-frontend-style');
+        foreach ($actual_vibemap_script_handles as $handle) {
+            wp_dequeue_script($handle);
+            wp_dequeue_style($handle);
+        }
+        
+        // ADDITIONAL: Try systematic dequeuing of all possible ViberMap script patterns
+        // This covers scripts we might have missed with specific handles
+        global $wp_scripts;
+        if (isset($wp_scripts->registered)) {
+            foreach ($wp_scripts->registered as $handle => $script) {
+                // Dequeue any script that contains vibemap in the handle or src
+                if (strpos($handle, 'vibemap') !== false || 
+                    (isset($script->src) && strpos($script->src, 'vibemap-plugin') !== false)) {
+                    
+                    // Skip admin-only scripts to preserve HRW connector functionality
+                    if (strpos($handle, 'admin') === false && strpos($handle, 'backend') === false) {
+                        wp_dequeue_script($handle);
+                        // DEBUG: Log what we dequeued
+                        error_log('HRW DEBUG: Dequeued ViberMap script: ' . $handle);
+                    }
+                }
+            }
         }
     }
 }
