@@ -82,7 +82,8 @@ function vibemap_hrw_init()
  * Emergency hotfix: Conditionally dequeue heavy ViberMap assets
  * This prevents the 30MB+ bundles from loading on every page
  */
-function vibemap_hrw_conditional_asset_loading_hotfix() {
+function vibemap_hrw_conditional_asset_loading_hotfix()
+{
     // Hook into wp_enqueue_scripts with high priority to dequeue after ViberMap enqueues
     add_action('wp_enqueue_scripts', 'vibemap_hrw_dequeue_unnecessary_assets', 999);
 }
@@ -90,28 +91,29 @@ function vibemap_hrw_conditional_asset_loading_hotfix() {
 /**
  * Dequeue ViberMap assets on pages that don't need them
  */
-function vibemap_hrw_dequeue_unnecessary_assets() {
+function vibemap_hrw_dequeue_unnecessary_assets()
+{
     // Use enhanced logic to determine if ViberMap assets should load
     if (!vibemap_hrw_should_load_vibemap_assets()) {
-        
+
         // Dequeue heavy ViberMap scripts
         wp_dequeue_script('vibemap-templates');
         wp_dequeue_script('toastify-js');
         wp_dequeue_script('vibemap-modal');
-        
+
         // Dequeue ViberMap styles  
         wp_dequeue_style('toastify-css');
         wp_dequeue_style('vibemap-modal');
-        
+
         // Dequeue bookmarks functionality on non-relevant pages
         wp_dequeue_script('vibemap-bookmarks-js');
         wp_dequeue_script('vibemap-bookmarks-mini-cart-js');
         wp_dequeue_style('vibemap-bookmarks-mini-cart-css');
-        
+
         // Dequeue block-specific assets (these are the 10MB+ files)
         $vibemap_blocks = [
             'vibemap-similar-items',
-            'vibemap-card-carousel', 
+            'vibemap-card-carousel',
             'vibemap-native-places',
             'vibemap-bookmarks',
             'vibemap-meta-info',
@@ -121,7 +123,7 @@ function vibemap_hrw_dequeue_unnecessary_assets() {
             'vibemap-single-card',
             'vibemap-native-events'
         ];
-        
+
         foreach ($vibemap_blocks as $block) {
             wp_dequeue_script($block . '-frontend');
             wp_dequeue_script($block . '-script');
@@ -135,53 +137,54 @@ function vibemap_hrw_dequeue_unnecessary_assets() {
  * Enhanced logic to determine if ViberMap assets should load
  * Extends the existing vibemap_hrw_should_load_css() logic
  */
-function vibemap_hrw_should_load_vibemap_assets() {
+function vibemap_hrw_should_load_vibemap_assets()
+{
     global $post;
-    
+
     // ALWAYS load on ViberMap post types
     if (is_singular(['vibemap_place', 'vibemap_event'])) {
         return true;
     }
-    
+
     // ALWAYS load in admin (preserves HRW connector functionality)
     if (is_admin()) {
         return true;
     }
-    
+
     // Load if page contains ViberMap blocks
     if ($post && has_blocks($post->post_content)) {
         if (strpos($post->post_content, 'vibemap') !== false) {
             return true;
         }
     }
-    
+
     // Load if page contains ViberMap shortcodes
     if ($post && $post->post_content) {
         if (strpos($post->post_content, '[vibemap') !== false) {
             return true;
         }
     }
-    
+
     // Load on shared list pages
     if (get_query_var('shared_list')) {
         return true;
     }
-    
+
     // Use existing HRW CSS loading logic as fallback
     if (function_exists('vibemap_hrw_should_load_css') && vibemap_hrw_should_load_css()) {
         return true;
     }
-    
+
     // Load on specific restaurant-related pages
     if (is_page(['restaurants', 'places', 'events', 'bookmarks', 'favorites'])) {
         return true;
     }
-    
+
     // Houston Restaurant Week specific pages
     if (is_page(['restaurant-week', 'participating-restaurants', 'hrw-restaurants'])) {
         return true;
     }
-    
+
     return false;
 }
 
